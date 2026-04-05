@@ -3,7 +3,6 @@ package com.example.safewalk.data.service
 import android.bluetooth.BluetoothDevice
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
-import java.util.concurrent.Flow
 
 data class WearableAlertEvent(
     val eventId: String = UUID.randomUUID().toString(),

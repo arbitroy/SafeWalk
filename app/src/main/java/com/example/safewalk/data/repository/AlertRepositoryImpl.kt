@@ -5,7 +5,10 @@ import com.example.safewalk.data.local.AlertLocationDao
 import com.example.safewalk.data.model.*
 import com.example.safewalk.data.remote.SafeWalkApiService
 import com.example.safewalk.domain.repository.AlertRepository
-import java.util.concurrent.Flow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import javax.inject.Inject
+import javax.inject.Singleton
 
 
 @Singleton
