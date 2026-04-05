@@ -8,11 +8,11 @@ plugins {
 
 android {
     namespace = "com.example.safewalk"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.safewalk"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"

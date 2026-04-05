@@ -1,3 +1,4 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
 package com.example.safewalk.presentation.ui.screens
 
 import androidx.compose.foundation.background

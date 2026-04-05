@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.content.ContextCompat
@@ -65,7 +66,8 @@ class BluetoothServiceImpl @Inject constructor(
                     context, Manifest.permission.VIBRATE
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
-                vibrator.vibrate(pattern)
+                val effect = VibrationEffect.createWaveform(pattern, -1)
+                vibrator.vibrate(effect)
             }
             Result.success(Unit)
         } catch (e: Exception) {

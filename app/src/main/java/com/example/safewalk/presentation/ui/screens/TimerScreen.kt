@@ -17,7 +17,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.safewalk.data.model.TimerState
 import com.example.safewalk.presentation.viewmodel.TimerViewModel
 
 @Composable

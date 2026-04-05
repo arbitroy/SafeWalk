@@ -1,8 +1,5 @@
 package com.example.safewalk.data.model
 
-import com.google.gson.annotations.SerializedName
-
-@SerializedName("recordLocationRequest")
 data class RecordLocationRequest(
     val alertId: String,
     val latitude: Double,
