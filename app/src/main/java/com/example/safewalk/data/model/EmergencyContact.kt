@@ -1,11 +1,15 @@
 package com.example.safewalk.data.model
 
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
+
+@Entity(tableName = "emergency_contacts")
+@Serializable
 data class EmergencyContact(
-    val id: String,
-    val userId: String,
+    @PrimaryKey val id: String = System.currentTimeMillis().toString(),
     val name: String,
     val phone: String,
-    val email: String,
-    val notificationPreference: NotificationPreference,
-    val isActive: Boolean = true
+    val relationship: String = "",
+    val isPrimary: Boolean = false,
 )

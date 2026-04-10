@@ -1,28 +1,34 @@
 package com.example.safewalk.di
 
-import com.example.safewalk.data.repository.AlertRepositoryImpl
-import com.example.safewalk.data.repository.EmergencyContactRepositoryImpl
-import com.example.safewalk.domain.repository.AlertRepository
-import com.example.safewalk.domain.repository.EmergencyContactRepository
+import android.content.Context
+import com.example.safewalk.data.local.SafeWalkRepository
+import com.example.safewalk.data.preferences.SafeWalkDataStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object RepositoryModule {
-    
+
     @Provides
     @Singleton
-    fun provideAlertRepository(
-        impl: AlertRepositoryImpl
-    ): AlertRepository = impl
-    
+    fun provideDataStore(
+        @ApplicationContext context: Context,
+    ): SafeWalkDataStore {
+        return SafeWalkDataStore(context)
+    }
+
     @Provides
     @Singleton
-    fun provideEmergencyContactRepository(
-        impl: EmergencyContactRepositoryImpl
-    ): EmergencyContactRepository = impl
+    fun provideRepository(
+        checkInDao: com.example.safewalk.data.local.CheckInDao,
+        contactDao: com.example.safewalk.data.local.ContactDao,
+        dataStore: SafeWalkDataStore,
+    ): SafeWalkRepository {
+        return SafeWalkRepository(checkInDao, contactDao, dataStore)
+    }
 }

@@ -1,10 +1,15 @@
 package com.example.safewalk.data.model
 
+import kotlinx.serialization.Serializable
+import java.time.Instant
+
+/**
+ * User account representation
+ */
+@Serializable
 data class User(
     val id: String,
     val email: String,
-    val firstName: String,
-    val lastName: String,
-    val phone: String?,
-    val createdAt: Long
+    val name: String,
+    val createdAt: String = Instant.now().toString(),
 )
