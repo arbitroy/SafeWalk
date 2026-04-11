@@ -6,7 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -17,14 +16,14 @@ import com.example.safewalk.data.local.SafeWalkRepository
 import com.example.safewalk.ui.screens.DashboardScreen
 import com.example.safewalk.ui.screens.EmergencyContactsScreen
 import com.example.safewalk.ui.screens.HistoryScreen
-import com.example.safewalk.ui.screens.SettingsScreen
-import com.example.safewalk.ui.screens.ProfileScreen
 import com.example.safewalk.ui.screens.LoginScreen
-import com.example.safewalk.ui.screens.SignUpScreen
 import com.example.safewalk.ui.screens.OnboardingScreen
+import com.example.safewalk.ui.screens.ProfileScreen
+import com.example.safewalk.ui.screens.SettingsScreen
+import com.example.safewalk.ui.screens.SignUpScreen
 import com.example.safewalk.ui.theme.SafeWalkTheme
-import com.example.safewalk.ui.viewmodel.AuthViewModel
 import com.example.safewalk.ui.viewmodel.AuthState
+import com.example.safewalk.ui.viewmodel.AuthViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 

@@ -18,3 +18,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "SafeWalk"
 include(":app")
+include(":wear")
