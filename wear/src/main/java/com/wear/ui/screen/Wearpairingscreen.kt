@@ -1,6 +1,7 @@
 package com.wear.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,16 +12,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -50,102 +48,105 @@ fun WearPairingScreen(
     if (showPairingMenu) {
         WearPairingMenuScreen(viewModel)
     } else {
-        WearTimerDisplay(viewModel, pairingState)
+        WearMainScreen(viewModel, pairingState)
     }
 }
 
 @Composable
-fun WearTimerDisplay(
+private fun WearMainScreen(
     viewModel: WearPairingViewModel,
     pairingState: WearPairingViewModel.PairingState,
 ) {
-    val session by viewModel.session.collectAsState()
     val remainingSeconds by viewModel.remainingSeconds.collectAsState()
+    val adaptiveTimerFontSize = computeTimerFontSize()
+    val isPaired = pairingState == WearPairingViewModel.PairingState.Paired
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
-            .padding(8.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
+            .background(Color.Black),
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Top: Pairing status + Settings button
-        Row(
+        // Status indicator - centered above timer
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(32.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+                .size(24.dp)
+                .background(
+                    color = if (isPaired) Color(0xFF10B981) else Color(0xFFDC2626),
+                    shape = CircleShape,
+                )
+                .clickable { viewModel.togglePairingMenu() },
+            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                when (pairingState) {
-                    WearPairingViewModel.PairingState.Paired -> "PAIRED"
-                    WearPairingViewModel.PairingState.Unpaired -> "NO PAIR"
-                    else -> "..."
-                },
-                fontSize = 10.sp,
-                color = when (pairingState) {
-                    WearPairingViewModel.PairingState.Paired -> Color.Green
-                    else -> Color.Red
-                },
+            Icon(
+                if (isPaired) Icons.Filled.Check else Icons.Filled.Close,
+                contentDescription = if (isPaired) "Paired" else "Not Paired",
+                modifier = Modifier.size(14.dp),
+                tint = Color.White,
             )
-
-            OutlinedButton(
-                onClick = { viewModel.togglePairingMenu() },
-                modifier = Modifier
-                    .size(width = 48.dp, height = 28.dp),
-                colors = ButtonDefaults.outlinedButtonColors(),
-            ) {
-                Icon(Icons.Filled.Settings, "", modifier = Modifier.size(12.dp))
-            }
         }
 
-        // Middle: Timer
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Timer display - centered
+        Text(
+            text = formatTime(remainingSeconds),
+            fontSize = adaptiveTimerFontSize,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            letterSpacing = WearUIConstants.TIMER_LETTER_SPACING,
+            textAlign = TextAlign.Center,
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Action buttons - centered, stacked vertically
         Column(
+            modifier = Modifier
+                .fillMaxWidth(0.75f)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = formatTime(remainingSeconds),
-                fontSize = 56.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-            )
-        }
-
-        // Bottom: Action buttons (Safe and SOS)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxWidth(),
         ) {
             OutlinedButton(
                 onClick = { viewModel.checkIn("COMPLETED") },
                 modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp),
+                    .fillMaxWidth()
+                    .height(WearUIConstants.BUTTON_HEIGHT),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = Color.White,
                 ),
             ) {
-                Text("OK", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "OK",
+                    fontSize = WearUIConstants.BUTTON_FONT_SIZE,
+                    fontWeight = FontWeight.Bold,
+                )
             }
+
             Button(
                 onClick = { viewModel.triggerSOS() },
                 modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp),
+                    .fillMaxWidth()
+                    .height(WearUIConstants.BUTTON_HEIGHT),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFDC2626),
                 ),
             ) {
-                Text("SOS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(
+                    "SOS",
+                    fontSize = WearUIConstants.BUTTON_FONT_SIZE,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
             }
         }
     }
 }
 
 @Composable
-fun WearPairingMenuScreen(
+private fun WearPairingMenuScreen(
     viewModel: WearPairingViewModel,
 ) {
     val pairingState by viewModel.pairingState.collectAsState()
@@ -155,9 +156,8 @@ fun WearPairingMenuScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .verticalScroll(rememberScrollState())
-            .padding(10.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         when (pairingState) {
@@ -165,12 +165,17 @@ fun WearPairingMenuScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("PAIR", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "PAIR",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
                     Text(
                         "Enter code from phone",
-                        fontSize = 9.sp,
+                        fontSize = 11.sp,
                         textAlign = TextAlign.Center,
                         color = Color.White,
                     )
@@ -178,30 +183,29 @@ fun WearPairingMenuScreen(
                     OutlinedTextField(
                         value = userInputCode,
                         onValueChange = { if (it.length <= 8) userInputCode = it.uppercase() },
-                        label = { Text("Code", fontSize = 8.sp) },
+                        label = { Text("Code", fontSize = 10.sp) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(45.dp),
+                            .height(50.dp),
                         singleLine = true,
-                        textStyle = androidx.compose.material3.LocalTextStyle.current.copy(fontSize = 11.sp),
                     )
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(42.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            .height(WearUIConstants.BUTTON_HEIGHT),
+                        horizontalArrangement = Arrangement.spacedBy(WearUIConstants.BUTTON_GAP),
                     ) {
                         OutlinedButton(
                             onClick = { viewModel.togglePairingMenu() },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(42.dp),
+                                .height(WearUIConstants.BUTTON_HEIGHT),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = Color.White,
                             ),
                         ) {
-                            Text("Back", fontSize = 10.sp)
+                            Text("Back", fontSize = 11.sp)
                         }
                         Button(
                             onClick = {
@@ -212,10 +216,10 @@ fun WearPairingMenuScreen(
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(42.dp),
+                                .height(WearUIConstants.BUTTON_HEIGHT),
                             enabled = userInputCode.length == 8,
                         ) {
-                            Text("OK", fontSize = 10.sp)
+                            Text("OK", fontSize = 11.sp)
                         }
                     }
                 }
@@ -225,44 +229,49 @@ fun WearPairingMenuScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Icon(
                         Icons.Filled.Check,
                         "Paired",
-                        modifier = Modifier.size(36.dp),
-                        tint = Color.Green,
+                        modifier = Modifier.size(40.dp),
+                        tint = Color(0xFF10B981),
                     )
-                    Text("PAIRED", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text("Device synced", fontSize = 9.sp, color = Color.White)
+                    Text(
+                        "PAIRED",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
+                    Text("Device synced", fontSize = 11.sp, color = Color.White)
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(42.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            .height(WearUIConstants.BUTTON_HEIGHT),
+                        horizontalArrangement = Arrangement.spacedBy(WearUIConstants.BUTTON_GAP),
                     ) {
                         OutlinedButton(
                             onClick = { viewModel.togglePairingMenu() },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(42.dp),
+                                .height(WearUIConstants.BUTTON_HEIGHT),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = Color.White,
                             ),
                         ) {
-                            Text("Back", fontSize = 10.sp)
+                            Text("Back", fontSize = 11.sp)
                         }
                         Button(
                             onClick = { viewModel.unpair() },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(42.dp),
+                                .height(WearUIConstants.BUTTON_HEIGHT),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFFDC2626),
                             ),
                         ) {
-                            Text("Remove", fontSize = 10.sp)
+                            Text("Remove", fontSize = 11.sp)
                         }
                     }
                 }
@@ -272,20 +281,20 @@ fun WearPairingMenuScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("Pairing...", fontSize = 12.sp, color = Color.White)
-                    Spacer(Modifier.height(4.dp))
+                    Text("Pairing...", fontSize = 13.sp, color = Color.White)
+                    Spacer(Modifier.height(12.dp))
                     OutlinedButton(
                         onClick = { viewModel.cancelPairing() },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(42.dp),
+                            .height(WearUIConstants.BUTTON_HEIGHT),
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = Color.White,
                         ),
                     ) {
-                        Text("Cancel", fontSize = 10.sp)
+                        Text("Cancel", fontSize = 11.sp)
                     }
                 }
             }
@@ -294,21 +303,20 @@ fun WearPairingMenuScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("Error", fontSize = 12.sp, color = Color(0xFFDC2626))
-                    Text("Pairing failed", fontSize = 9.sp, color = Color.White)
+                    Text("Error", fontSize = 13.sp, color = Color(0xFFDC2626))
+                    Text("Pairing failed", fontSize = 11.sp, color = Color.White)
                     Button(
                         onClick = { viewModel.togglePairingMenu() },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(42.dp),
+                            .height(WearUIConstants.BUTTON_HEIGHT),
                     ) {
-                        Text("Back", fontSize = 10.sp)
+                        Text("Back", fontSize = 11.sp)
                     }
                 }
             }
         }
     }
 }
-

@@ -24,7 +24,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -269,7 +272,7 @@ private fun AddContactDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
-                .padding(16.dp),
+                .padding(18.dp),
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text("Add Emergency Contact", fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -314,21 +317,19 @@ private fun AddContactDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     OutlinedButton(
                         onClick = onShowPicker,
                         modifier = Modifier.weight(1f),
                     ) {
                         Icon(Icons.Filled.Contacts, "Pick", Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Pick")
                     }
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text("Cancel")
+                        Icon(Icons.Filled.Close, "Cancel", Modifier.size(18.dp))
                     }
                     Button(
                         onClick = {
@@ -345,7 +346,7 @@ private fun AddContactDialog(
                         },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text("Add")
+                        Icon(Icons.Filled.Check, "Add", Modifier.size(18.dp))
                     }
                 }
             }
@@ -361,6 +362,15 @@ private fun ContactPickerDialog(
 ) {
     val systemContacts by viewModel.systemContacts.collectAsState(initial = emptyList())
     val isLoading by viewModel.isLoadingContacts.collectAsState(initial = false)
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredContacts = remember(systemContacts, searchQuery) {
+        if (searchQuery.isBlank()) {
+            systemContacts
+        } else {
+            systemContacts.filter { it.name.contains(searchQuery, ignoreCase = true) }
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.loadSystemContacts()
@@ -382,7 +392,15 @@ private fun ContactPickerDialog(
                     "Select Contact",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+
+                TextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search by name...") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
                 )
 
                 if (isLoading) {
@@ -394,7 +412,7 @@ private fun ContactPickerDialog(
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(40.dp))
                     }
-                } else if (systemContacts.isEmpty()) {
+                } else if (filteredContacts.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -402,7 +420,7 @@ private fun ContactPickerDialog(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            "No contacts found",
+                            if (searchQuery.isBlank()) "No contacts found" else "No matching contacts",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp,
                         )
@@ -414,8 +432,8 @@ private fun ContactPickerDialog(
                             .heightIn(max = 300.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(systemContacts.size) { index ->
-                            val contact = systemContacts[index]
+                        items(filteredContacts.size) { index ->
+                            val contact = filteredContacts[index]
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()

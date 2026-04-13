@@ -2,23 +2,23 @@
 <project version="4">
   <component name="deploymentTargetSelector">
     <selectionStates>
-      <SelectionState runConfigName="MainActivity">
+      <SelectionState runConfigName="wear">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-04-12T13:04:00.358133580Z">
+        <DropdownSelection timestamp="2026-04-10T12:18:13.107220300Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=RZCX52JW42P" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\eProd\.android\avd\Medium_Phone.avd" />
             </handle>
           </Target>
         </DropdownSelection>
         <DialogSelection />
       </SelectionState>
-      <SelectionState runConfigName="wear">
+      <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-04-12T12:54:44.293285518Z">
+        <DropdownSelection timestamp="2026-04-10T12:18:13.107220300Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=/home/austine/.android/avd/Wear_OS_Large_Round.avd" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\eProd\.android\avd\Medium_Phone.avd" />
             </handle>
           </Target>
         </DropdownSelection>

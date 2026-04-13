@@ -1,15 +1,24 @@
 package com.wear.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -18,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -33,38 +43,83 @@ fun WearTimerScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
-            .padding(8.dp),
+            .background(Color.Black),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Timer display (huge, watch-sized)
+        // Status indicator - centered above timer
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .background(
+                    color = Color(0xFF10B981),
+                    shape = CircleShape,
+                )
+                .clickable { },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.Check,
+                contentDescription = "Paired",
+                modifier = Modifier.size(14.dp),
+                tint = Color.White,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Timer display - centered
         Text(
             text = formatTime(remainingSeconds),
-            fontSize = 60.sp,
+            fontSize = computeTimerFontSize(),
             fontWeight = FontWeight.Bold,
             color = Color.White,
+            letterSpacing = WearUIConstants.TIMER_LETTER_SPACING,
+            textAlign = TextAlign.Center,
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Only 2 buttons on watch (no space for more)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { viewModel.checkIn("COMPLETED") }) {
-                Text("Safe")
+        // Action buttons - centered, stacked vertically
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.75f)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            OutlinedButton(
+                onClick = { viewModel.checkIn("COMPLETED") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(WearUIConstants.BUTTON_HEIGHT),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color.White,
+                ),
+            ) {
+                Text(
+                    "OK",
+                    fontSize = WearUIConstants.BUTTON_FONT_SIZE,
+                    fontWeight = FontWeight.Bold,
+                )
             }
+
             Button(
                 onClick = { viewModel.triggerSOS() },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(WearUIConstants.BUTTON_HEIGHT),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFDC2626),
+                ),
             ) {
-                Text("SOS")
+                Text(
+                    "SOS",
+                    fontSize = WearUIConstants.BUTTON_FONT_SIZE,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
             }
         }
     }
-}
-
-fun formatTime(seconds: Int): String {
-    val mins = seconds / 60
-    val secs = seconds % 60
-    return "%d:%02d".format(mins, secs)
 }
