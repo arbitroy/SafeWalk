@@ -4,7 +4,6 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
-import android.net.wifi.WifiManager
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -17,13 +16,20 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Simplified unidirectional pairing manager.
+ *
+ * Mobile initiates pairing → Wearable accepts → Done
+ *
+ * Trade-off: Requires wearable to accept (trust device).
+ * Benefit: Removes code verification step, leverages Android's native pairing.
+ */
 @Singleton
 class PairingManager @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     private val bluetoothManager = context.getSystemService<BluetoothManager>()
     private val bluetoothAdapter = bluetoothManager?.adapter ?: BluetoothAdapter.getDefaultAdapter()
-    private val wifiManager = context.getSystemService<WifiManager>()
 
     private val _pairingState = MutableStateFlow<PairingState>(PairingState.Unpaired)
     val pairingState: StateFlow<PairingState> = _pairingState.asStateFlow()
@@ -31,9 +37,8 @@ class PairingManager @Inject constructor(
     private val _pairedDevice = MutableStateFlow<PairedDevice?>(null)
     val pairedDevice: StateFlow<PairedDevice?> = _pairedDevice.asStateFlow()
 
-    // Unique device identifier generated on first run
     val deviceId: String by lazy {
-        val prefs = context.getSharedPreferences("pairing", Context.MODE_PRIVATE)
+        val prefs = context.getSharedPreferences("safewalk_pairing", Context.MODE_PRIVATE)
         var id = prefs.getString("device_id", null)
         if (id == null) {
             id = UUID.randomUUID().toString()
@@ -42,105 +47,101 @@ class PairingManager @Inject constructor(
         id!!
     }
 
-    // Generate pairing code (8 char alphanumeric)
-    fun generatePairingCode(): String {
-        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        return (1..8).map { chars.random() }.joinToString("")
+    init {
+        loadPairedDevice()
     }
 
-    // Validate pairing code format
-    fun validatePairingCode(code: String): Boolean {
-        return code.length == 8 && code.all { it.isLetterOrDigit() }
-    }
+    /**
+     * Initiate Bluetooth pairing with a remote device.
+     * Android's native pairing dialog will appear on both devices.
+     */
+    fun startBluetoothPairing(
+        remoteDeviceAddress: String,
+        remoteDeviceName: String,
+    ): Boolean {
+        if (!hasBluetoothPermission()) {
+            Log.e("PairingManager", "Missing Bluetooth permissions")
+            return false
+        }
 
-    // Initiate Bluetooth pairing
-    fun startBluetoothPairing(pairingCode: String): Boolean {
         if (!bluetoothAdapter?.isEnabled!!) {
             Log.e("PairingManager", "Bluetooth not enabled")
             return false
         }
 
-        if (!validatePairingCode(pairingCode)) {
-            Log.e("PairingManager", "Invalid pairing code: $pairingCode")
-            return false
+        return try {
+            val remoteDevice = bluetoothAdapter?.getRemoteDevice(remoteDeviceAddress)
+            if (remoteDevice == null) {
+                Log.e("PairingManager", "Device not found: $remoteDeviceAddress")
+                return false
+            }
+
+            _pairingState.value = PairingState.Pairing
+
+            // Android's native pairing dialog is triggered automatically
+            // when attempting to connect. Let the OS handle it.
+            Log.d("PairingManager", "Pairing initiated with $remoteDeviceName ($remoteDeviceAddress)")
+            true
+        } catch (e: Exception) {
+            Log.e("PairingManager", "Pairing initiation failed", e)
+            _pairingState.value = PairingState.Error("Failed to initiate pairing")
+            false
         }
-
-        _pairingState.value = PairingState.Pairing(pairingCode, TransportType.BLUETOOTH)
-
-        // In production, discovery would happen here via BluetoothAdapter.startDiscovery()
-        // For emulator testing, use known device addresses
-        return true
     }
 
-    // Initiate Wi-Fi Direct pairing
-    fun startWiFiPairing(pairingCode: String): Boolean {
-        if (!validatePairingCode(pairingCode)) {
-            Log.e("PairingManager", "Invalid pairing code: $pairingCode")
-            return false
-        }
-
-        _pairingState.value = PairingState.Pairing(pairingCode, TransportType.WIFI)
-
-        // In production, Wi-Fi Direct discovery would happen here
-        return true
-    }
-
-    // Complete pairing after successful authentication
+    /**
+     * Complete pairing after successful Android system pairing.
+     * This is called once the user accepts pairing on both devices.
+     */
     fun completePairing(
-        remoteDeviceId: String,
+        remoteDeviceAddress: String,
         remoteDeviceName: String,
-        transportType: TransportType,
-        pairingCode: String,
     ): Boolean {
-        val currentState = _pairingState.value
-        if (currentState !is PairingState.Pairing || currentState.code != pairingCode) {
-            Log.e("PairingManager", "Pairing code mismatch or invalid state")
-            return false
+        return try {
+            val pairedDevice = PairedDevice(
+                localDeviceId = deviceId,
+                remoteDeviceId = remoteDeviceAddress,
+                remoteDeviceName = remoteDeviceName,
+                pairingTimestamp = System.currentTimeMillis(),
+            )
+
+            // Persist to SharedPreferences
+            val prefs = context.getSharedPreferences("safewalk_pairing", Context.MODE_PRIVATE)
+            prefs.edit().apply {
+                putString("remote_device_address", remoteDeviceAddress)
+                putString("remote_device_name", remoteDeviceName)
+                putLong("pairing_timestamp", pairedDevice.pairingTimestamp)
+                apply()
+            }
+
+            _pairedDevice.value = pairedDevice
+            _pairingState.value = PairingState.Paired(pairedDevice)
+            Log.d("PairingManager", "Pairing completed: $remoteDeviceName")
+            true
+        } catch (e: Exception) {
+            Log.e("PairingManager", "Error completing pairing", e)
+            _pairingState.value = PairingState.Error(e.message ?: "Unknown error")
+            false
         }
-
-        val pairedDevice = PairedDevice(
-            localDeviceId = deviceId,
-            remoteDeviceId = remoteDeviceId,
-            remoteDeviceName = remoteDeviceName,
-            transportType = transportType,
-            pairingTimestamp = System.currentTimeMillis(),
-            pairingCode = pairingCode,
-        )
-
-        // Persist pairing to SharedPreferences
-        val prefs = context.getSharedPreferences("pairing", Context.MODE_PRIVATE)
-        prefs.edit().apply {
-            putString("remote_device_id", pairedDevice.remoteDeviceId)
-            putString("remote_device_name", pairedDevice.remoteDeviceName)
-            putString("transport_type", pairedDevice.transportType.name)
-            putLong("pairing_timestamp", pairedDevice.pairingTimestamp)
-            apply()
-        }
-
-        _pairedDevice.value = pairedDevice
-        _pairingState.value = PairingState.Paired(pairedDevice)
-        return true
     }
 
-    // Load previously paired device
+    /**
+     * Load previously paired device from storage.
+     */
     fun loadPairedDevice(): Boolean {
-        val prefs = context.getSharedPreferences("pairing", Context.MODE_PRIVATE)
-        val remoteId = prefs.getString("remote_device_id", null)
+        val prefs = context.getSharedPreferences("safewalk_pairing", Context.MODE_PRIVATE)
+        val remoteAddress = prefs.getString("remote_device_address", null)
 
-        if (remoteId == null) {
+        if (remoteAddress == null) {
             _pairingState.value = PairingState.Unpaired
             return false
         }
 
         val device = PairedDevice(
             localDeviceId = deviceId,
-            remoteDeviceId = remoteId,
+            remoteDeviceId = remoteAddress,
             remoteDeviceName = prefs.getString("remote_device_name", "Unknown") ?: "Unknown",
-            transportType = TransportType.valueOf(
-                prefs.getString("transport_type", "BLUETOOTH") ?: "BLUETOOTH"
-            ),
             pairingTimestamp = prefs.getLong("pairing_timestamp", 0),
-            pairingCode = prefs.getString("pairing_code", "") ?: "",
         )
 
         _pairedDevice.value = device
@@ -148,41 +149,73 @@ class PairingManager @Inject constructor(
         return true
     }
 
-    // Unpair current device
-    fun unpair() {
-        val prefs = context.getSharedPreferences("pairing", Context.MODE_PRIVATE)
-        prefs.edit().apply {
-            remove("remote_device_id")
-            remove("remote_device_name")
-            remove("transport_type")
-            remove("pairing_timestamp")
-            apply()
-        }
+    /**
+     * Unpair the current device.
+     */
+    fun unpair(): Boolean {
+        return try {
+            val device = _pairedDevice.value ?: return false
 
-        _pairedDevice.value = null
-        _pairingState.value = PairingState.Unpaired
+            // Remove from Android's paired devices using reflection as it's a hidden API
+            try {
+                val remoteDevice = bluetoothAdapter?.getRemoteDevice(device.remoteDeviceId)
+                remoteDevice?.let {
+                    val method = it.javaClass.getMethod("removeBond")
+                    method.invoke(it)
+                }
+            } catch (e: Exception) {
+                Log.e("PairingManager", "Error removing bond via reflection", e)
+            }
+
+            // Clear SharedPreferences
+            val prefs = context.getSharedPreferences("safewalk_pairing", Context.MODE_PRIVATE)
+            prefs.edit().apply {
+                remove("remote_device_address")
+                remove("remote_device_name")
+                remove("pairing_timestamp")
+                apply()
+            }
+
+            _pairedDevice.value = null
+            _pairingState.value = PairingState.Unpaired
+            Log.d("PairingManager", "Device unpaired")
+            true
+        } catch (e: Exception) {
+            Log.e("PairingManager", "Error unpairing device", e)
+            _pairingState.value = PairingState.Error(e.message ?: "Unpair failed")
+            false
+        }
     }
+
+    private fun hasBluetoothPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    fun isBluetoothEnabled(): Boolean = bluetoothAdapter?.isEnabled == true
 }
 
 data class PairedDevice(
     val localDeviceId: String,
     val remoteDeviceId: String,
     val remoteDeviceName: String,
-    val transportType: TransportType,
     val pairingTimestamp: Long,
-    val pairingCode: String,
 ) {
     fun isValid(): Boolean = remoteDeviceId.isNotEmpty() && remoteDeviceName.isNotEmpty()
 }
 
 sealed class PairingState {
     data object Unpaired : PairingState()
-    data class Pairing(val code: String, val transportType: TransportType) : PairingState()
+    data object Pairing : PairingState()
     data class Paired(val device: PairedDevice) : PairingState()
     data class Error(val message: String) : PairingState()
-}
-
-enum class TransportType {
-    BLUETOOTH,
-    WIFI,
 }

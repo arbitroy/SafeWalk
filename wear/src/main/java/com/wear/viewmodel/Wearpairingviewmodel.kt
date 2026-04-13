@@ -14,6 +14,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Wearable pairing ViewModel - simplified for unidirectional flow.
+ *
+ * No code input needed. Once paired via Android's system dialog,
+ * the watch automatically syncs with the phone.
+ */
 @HiltViewModel
 class WearPairingViewModel @Inject constructor(
     private val dataLayerManager: WearDataLayerManager,
@@ -43,10 +49,10 @@ class WearPairingViewModel @Inject constructor(
             val prefs = dataLayerManager.context.getSharedPreferences("wear_pairing", 0)
             val pairedDeviceId = prefs.getString("paired_device_id", null)
 
-            if (pairedDeviceId != null) {
-                _pairingState.value = PairingState.Paired
+            _pairingState.value = if (pairedDeviceId != null) {
+                PairingState.Paired
             } else {
-                _pairingState.value = PairingState.Unpaired
+                PairingState.Unpaired
             }
         }
     }
@@ -55,49 +61,32 @@ class WearPairingViewModel @Inject constructor(
         _showPairingMenu.update { !it }
     }
 
-    fun confirmPairing(code: String) {
-        if (code.length != 8) return
-
+    /**
+     * Accept pairing from the phone.
+     * Called when Android system pairing dialog is accepted.
+     */
+    fun acceptPairing(pairedDeviceId: String) {
         viewModelScope.launch {
-            _pairingState.value = PairingState.Pairing
-
-            // Validate code format
-            if (!code.all { it.isLetterOrDigit() }) {
-                _pairingState.value = PairingState.Error
-                delay(1500)
-                _pairingState.value = PairingState.Unpaired
-                return@launch
-            }
-
-            // Wait 3 seconds for phone confirmation
-            delay(3000)
-
-            // In production, phone would send confirmation via Data Layer
-            // For emulator: simulate successful pairing
             val prefs = dataLayerManager.context.getSharedPreferences("wear_pairing", 0)
             prefs.edit().apply {
-                putString("paired_device_id", "emulator_phone_001")
-                putString("pairing_code", code)
+                putString("paired_device_id", pairedDeviceId)
                 putLong("pairing_time", System.currentTimeMillis())
                 apply()
             }
 
             _pairingState.value = PairingState.Paired
-            delay(1500)
             _showPairingMenu.value = false
         }
     }
 
-    fun cancelPairing() {
-        _pairingState.value = PairingState.Unpaired
-    }
-
+    /**
+     * Remove pairing.
+     */
     fun unpair() {
         viewModelScope.launch {
             val prefs = dataLayerManager.context.getSharedPreferences("wear_pairing", 0)
             prefs.edit().apply {
                 remove("paired_device_id")
-                remove("pairing_code")
                 remove("pairing_time")
                 apply()
             }
@@ -138,8 +127,6 @@ class WearPairingViewModel @Inject constructor(
 
     enum class PairingState {
         Unpaired,
-        Pairing,
         Paired,
-        Error,
     }
 }

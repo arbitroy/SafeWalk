@@ -20,14 +20,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -58,7 +54,7 @@ private fun WearMainScreen(
     pairingState: WearPairingViewModel.PairingState,
 ) {
     val remainingSeconds by viewModel.remainingSeconds.collectAsState()
-    val adaptiveTimerFontSize = computeTimerFontSize()
+    val timerFontSize = computeTimerFontSize()
     val isPaired = pairingState == WearPairingViewModel.PairingState.Paired
 
     Column(
@@ -68,7 +64,7 @@ private fun WearMainScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Status indicator - centered above timer
+        // Status indicator
         Box(
             modifier = Modifier
                 .size(24.dp)
@@ -89,10 +85,10 @@ private fun WearMainScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Timer display - centered
+        // Timer display
         Text(
             text = formatTime(remainingSeconds),
-            fontSize = adaptiveTimerFontSize,
+            fontSize = timerFontSize,
             fontWeight = FontWeight.Bold,
             color = Color.White,
             letterSpacing = WearUIConstants.TIMER_LETTER_SPACING,
@@ -101,7 +97,7 @@ private fun WearMainScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Action buttons - centered, stacked vertically
+        // Action buttons
         Column(
             modifier = Modifier
                 .fillMaxWidth(0.75f)
@@ -150,7 +146,6 @@ private fun WearPairingMenuScreen(
     viewModel: WearPairingViewModel,
 ) {
     val pairingState by viewModel.pairingState.collectAsState()
-    var userInputCode by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -162,160 +157,109 @@ private fun WearPairingMenuScreen(
     ) {
         when (pairingState) {
             WearPairingViewModel.PairingState.Unpaired -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        "PAIR",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                    )
-                    Text(
-                        "Enter code from phone",
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center,
-                        color = Color.White,
-                    )
-
-                    OutlinedTextField(
-                        value = userInputCode,
-                        onValueChange = { if (it.length <= 8) userInputCode = it.uppercase() },
-                        label = { Text("Code", fontSize = 10.sp) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        singleLine = true,
-                    )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(WearUIConstants.BUTTON_HEIGHT),
-                        horizontalArrangement = Arrangement.spacedBy(WearUIConstants.BUTTON_GAP),
-                    ) {
-                        OutlinedButton(
-                            onClick = { viewModel.togglePairingMenu() },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(WearUIConstants.BUTTON_HEIGHT),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color.White,
-                            ),
-                        ) {
-                            Text("Back", fontSize = 11.sp)
-                        }
-                        Button(
-                            onClick = {
-                                if (userInputCode.length == 8) {
-                                    viewModel.confirmPairing(userInputCode)
-                                    userInputCode = ""
-                                }
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(WearUIConstants.BUTTON_HEIGHT),
-                            enabled = userInputCode.length == 8,
-                        ) {
-                            Text("OK", fontSize = 11.sp)
-                        }
-                    }
-                }
+                UnpairedMenuState(viewModel)
             }
 
             WearPairingViewModel.PairingState.Paired -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.Check,
-                        "Paired",
-                        modifier = Modifier.size(40.dp),
-                        tint = Color(0xFF10B981),
-                    )
-                    Text(
-                        "PAIRED",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                    )
-                    Text("Device synced", fontSize = 11.sp, color = Color.White)
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(WearUIConstants.BUTTON_HEIGHT),
-                        horizontalArrangement = Arrangement.spacedBy(WearUIConstants.BUTTON_GAP),
-                    ) {
-                        OutlinedButton(
-                            onClick = { viewModel.togglePairingMenu() },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(WearUIConstants.BUTTON_HEIGHT),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color.White,
-                            ),
-                        ) {
-                            Text("Back", fontSize = 11.sp)
-                        }
-                        Button(
-                            onClick = { viewModel.unpair() },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(WearUIConstants.BUTTON_HEIGHT),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFDC2626),
-                            ),
-                        ) {
-                            Text("Remove", fontSize = 11.sp)
-                        }
-                    }
-                }
+                PairedMenuState(viewModel)
             }
+        }
+    }
+}
 
-            WearPairingViewModel.PairingState.Pairing -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text("Pairing...", fontSize = 13.sp, color = Color.White)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = { viewModel.cancelPairing() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(WearUIConstants.BUTTON_HEIGHT),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color.White,
-                        ),
-                    ) {
-                        Text("Cancel", fontSize = 11.sp)
-                    }
-                }
+@Composable
+private fun UnpairedMenuState(viewModel: WearPairingViewModel) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "NOT PAIRED",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+        )
+        Text(
+            "Waiting for phone",
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center,
+            color = Color.White,
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(WearUIConstants.BUTTON_HEIGHT),
+            horizontalArrangement = Arrangement.spacedBy(WearUIConstants.BUTTON_GAP),
+        ) {
+            OutlinedButton(
+                onClick = { viewModel.togglePairingMenu() },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(WearUIConstants.BUTTON_HEIGHT),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color.White,
+                ),
+            ) {
+                Text("Back", fontSize = 11.sp)
             }
+        }
+    }
+}
 
-            WearPairingViewModel.PairingState.Error -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text("Error", fontSize = 13.sp, color = Color(0xFFDC2626))
-                    Text("Pairing failed", fontSize = 11.sp, color = Color.White)
-                    Button(
-                        onClick = { viewModel.togglePairingMenu() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(WearUIConstants.BUTTON_HEIGHT),
-                    ) {
-                        Text("Back", fontSize = 11.sp)
-                    }
-                }
+@Composable
+private fun PairedMenuState(viewModel: WearPairingViewModel) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            Icons.Filled.Check,
+            "Paired",
+            modifier = Modifier.size(40.dp),
+            tint = Color(0xFF10B981),
+        )
+        Text(
+            "PAIRED",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+        )
+        Text("Device synced", fontSize = 11.sp, color = Color.White)
+
+        Spacer(Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(WearUIConstants.BUTTON_HEIGHT),
+            horizontalArrangement = Arrangement.spacedBy(WearUIConstants.BUTTON_GAP),
+        ) {
+            OutlinedButton(
+                onClick = { viewModel.togglePairingMenu() },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(WearUIConstants.BUTTON_HEIGHT),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color.White,
+                ),
+            ) {
+                Text("Back", fontSize = 11.sp)
+            }
+            Button(
+                onClick = { viewModel.unpair() },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(WearUIConstants.BUTTON_HEIGHT),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFDC2626),
+                ),
+            ) {
+                Text("Remove", fontSize = 11.sp)
             }
         }
     }
