@@ -1,6 +1,5 @@
 package com.example.safewalk.ui.screens
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,8 +24,11 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,6 +71,8 @@ fun EmergencyContactsScreen(
     val contacts by viewModel.contacts.collectAsState(initial = emptyList())
     val snackbarHostState = remember { SnackbarHostState() }
     var showAddDialog by remember { mutableStateOf(false) }
+    var showContactPicker by remember { mutableStateOf(false) }
+    var selectedContact by remember { mutableStateOf<com.example.safewalk.contacts.SystemContact?>(null) }
 
     LaunchedEffect(viewModel.uiEvent) {
         viewModel.uiEvent.collect { event ->
@@ -149,9 +154,38 @@ fun EmergencyContactsScreen(
     if (showAddDialog) {
         AddContactDialog(
             onDismiss = { showAddDialog = false },
+            onShowPicker = { showContactPicker = true },
             onAdd = { contact ->
                 viewModel.addContact(contact)
                 showAddDialog = false
+            },
+        )
+    }
+
+    if (showContactPicker) {
+        ContactPickerDialog(
+            onDismiss = { showContactPicker = false },
+            onContactSelected = { contact ->
+                selectedContact = contact
+                showContactPicker = false
+                showAddDialog = true
+            },
+            viewModel = viewModel,
+        )
+    }
+
+    if (selectedContact != null && showAddDialog) {
+        AddContactDialog(
+            initialContact = selectedContact,
+            onDismiss = {
+                showAddDialog = false
+                selectedContact = null
+            },
+            onShowPicker = { showContactPicker = true },
+            onAdd = { contact ->
+                viewModel.addContact(contact)
+                showAddDialog = false
+                selectedContact = null
             },
         )
     }
@@ -223,10 +257,12 @@ private fun ContactListItem(
 @Composable
 private fun AddContactDialog(
     onDismiss: () -> Unit,
+    onShowPicker: () -> Unit,
     onAdd: (EmergencyContact) -> Unit,
+    initialContact: com.example.safewalk.contacts.SystemContact? = null,
 ) {
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initialContact?.name ?: "") }
+    var phone by remember { mutableStateOf(initialContact?.phone ?: "") }
     var relationship by remember { mutableStateOf("") }
     var isPrimary by remember { mutableStateOf(false) }
 
@@ -258,7 +294,7 @@ private fun AddContactDialog(
                 TextField(
                     value = relationship,
                     onValueChange = { relationship = it },
-                    label = { Text("Relationship") },
+                    label = { Text("Relationship (optional)") },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(16.dp))
@@ -278,8 +314,16 @@ private fun AddContactDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    OutlinedButton(
+                        onClick = onShowPicker,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Filled.Contacts, "Pick", Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Pick")
+                    }
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
@@ -302,6 +346,137 @@ private fun AddContactDialog(
                         modifier = Modifier.weight(1f),
                     ) {
                         Text("Add")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContactPickerDialog(
+    onDismiss: () -> Unit,
+    onContactSelected: (com.example.safewalk.contacts.SystemContact) -> Unit,
+    viewModel: EmergencyContactsViewModel,
+) {
+    val systemContacts by viewModel.systemContacts.collectAsState(initial = emptyList())
+    val isLoading by viewModel.isLoadingContacts.collectAsState(initial = false)
+
+    LaunchedEffect(Unit) {
+        viewModel.loadSystemContacts()
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .padding(16.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Select Contact",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(150.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(40.dp))
+                    }
+                } else if (systemContacts.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "No contacts found",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp,
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(systemContacts.size) { index ->
+                            val contact = systemContacts[index]
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onContactSelected(contact)
+                                    }
+                                    .padding(0.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                ),
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            contact.name.first().toString().uppercase(),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                        )
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            contact.name,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                        )
+                                        Text(
+                                            contact.phone,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Cancel", fontSize = 14.sp)
                     }
                 }
             }

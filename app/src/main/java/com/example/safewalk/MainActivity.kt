@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -13,6 +14,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.safewalk.data.local.SafeWalkRepository
+import com.example.safewalk.permissions.PermissionsManager
+import com.example.safewalk.pairing.PairingManager
 import com.example.safewalk.ui.screens.DashboardScreen
 import com.example.safewalk.ui.screens.EmergencyContactsScreen
 import com.example.safewalk.ui.screens.HistoryScreen
@@ -21,6 +24,7 @@ import com.example.safewalk.ui.screens.OnboardingScreen
 import com.example.safewalk.ui.screens.ProfileScreen
 import com.example.safewalk.ui.screens.SettingsScreen
 import com.example.safewalk.ui.screens.SignUpScreen
+import com.example.safewalk.ui.screens.PairingScreen
 import com.example.safewalk.ui.theme.SafeWalkTheme
 import com.example.safewalk.ui.viewmodel.AuthState
 import com.example.safewalk.ui.viewmodel.AuthViewModel
@@ -34,8 +38,22 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var repository: SafeWalkRepository
 
+    @Inject
+    lateinit var permissionsManager: PermissionsManager
+
+    @Inject
+    lateinit var pairingManager: PairingManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Request all pairing permissions on app startup
+        permissionsManager.registerPermissionLauncher(this)
+        permissionsManager.requestAllPairingPermissions(this)
+
+        // Load previously paired device
+        pairingManager.loadPairedDevice()
+
         setContent {
             SafeWalkTheme {
                 Surface(color = MaterialTheme.colorScheme.background) {
@@ -89,6 +107,9 @@ fun SafeWalkNavigation() {
         }
         composable("profile") {
             ProfileScreen(navController)
+        }
+        composable("pairing") {
+            PairingScreen(navController)
         }
     }
 }

@@ -17,13 +17,15 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-
     <!-- Background -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Vibration -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+
+    <!-- Contacts -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <application
         android:name=".SafeWalkApplication"
@@ -45,6 +47,5 @@
             </intent-filter>
         </activity>
     </application>
-
 
 </manifest>

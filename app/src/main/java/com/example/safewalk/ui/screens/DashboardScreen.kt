@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Start
+import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -167,13 +168,34 @@ fun DashboardScreen(
                 )
             }
 
-            // Quick Actions
+            // Quick Actions (Pairing shortcut)
             if (session is SafeWalkSession.Idle) {
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { navController.navigate("pairing") },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            ),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Icon(Icons.Filled.Watch, "Pairing", Modifier.size(24.dp))
+                                Spacer(Modifier.height(8.dp))
+                                Text("Wearable", fontWeight = FontWeight.Bold)
+                                Text("Pair device", fontSize = 12.sp)
+                            }
+                        }
+
                         Card(
                             modifier = Modifier
                                 .weight(1f)
