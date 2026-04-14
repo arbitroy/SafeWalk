@@ -28,6 +28,10 @@ class SafeWalkRepository @Inject constructor(
 
     fun getCompletedCheckInCount(): Flow<Int> = checkInDao.getCompletedCount()
 
+    fun getMissedCheckInCount(): Flow<Int> = checkInDao.getMissedCount()
+
+    fun getSosCheckInCount(): Flow<Int> = checkInDao.getSosCount()
+
     fun getTotalCheckInCount(): Flow<Int> = checkInDao.getTotalCount()
 
     suspend fun clearCheckInHistory() = checkInDao.clearAll()

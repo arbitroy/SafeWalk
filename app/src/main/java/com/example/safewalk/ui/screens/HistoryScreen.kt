@@ -58,6 +58,8 @@ fun HistoryScreen(
 ) {
     val history by viewModel.history.collectAsState(initial = emptyList())
     val completedCount by viewModel.completedCount.collectAsState(initial = 0)
+    val missedCount by viewModel.missedCount.collectAsState(initial = 0)
+    val sosCount by viewModel.sosCount.collectAsState(initial = 0)
     val totalCount by viewModel.totalCount.collectAsState(initial = 0)
 
     val successRate = if (totalCount > 0) (completedCount * 100) / totalCount else 0
@@ -122,8 +124,8 @@ fun HistoryScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         StatCard("$completedCount", "Safe")
-                        StatCard("${totalCount - completedCount}", "Missed")
-                        StatCard("0", "SOS")
+                        StatCard("$missedCount", "Missed")
+                        StatCard("$sosCount", "SOS")
                     }
                 }
             }

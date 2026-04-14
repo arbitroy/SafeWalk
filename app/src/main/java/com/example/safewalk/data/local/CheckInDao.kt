@@ -20,6 +20,12 @@ interface CheckInDao {
     @Query("SELECT COUNT(*) FROM check_ins WHERE status = 'COMPLETED'")
     fun getCompletedCount(): Flow<Int>
 
+    @Query("SELECT COUNT(*) FROM check_ins WHERE status = 'MISSED'")
+    fun getMissedCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM check_ins WHERE status = 'SOS'")
+    fun getSosCount(): Flow<Int>
+
     @Query("SELECT COUNT(*) FROM check_ins")
     fun getTotalCount(): Flow<Int>
 

@@ -21,6 +21,12 @@ class HistoryViewModel @Inject constructor(
     val completedCount: Flow<Int> = repository.getCompletedCheckInCount()
         .stateIn(viewModelScope, SharingStarted.Lazily, 0)
 
+    val missedCount: Flow<Int> = repository.getMissedCheckInCount()
+        .stateIn(viewModelScope, SharingStarted.Lazily, 0)
+
+    val sosCount: Flow<Int> = repository.getSosCheckInCount()
+        .stateIn(viewModelScope, SharingStarted.Lazily, 0)
+
     val totalCount: Flow<Int> = repository.getTotalCheckInCount()
         .stateIn(viewModelScope, SharingStarted.Lazily, 0)
 
