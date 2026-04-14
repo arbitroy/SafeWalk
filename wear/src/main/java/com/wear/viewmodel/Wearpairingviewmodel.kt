@@ -44,8 +44,17 @@ class WearPairingViewModel @Inject constructor(
 
     init {
         loadPairingState()
-        startTimerUpdates()
         dataLayerManager.startListening(viewModelScope)
+
+        // Mirror phone-authoritative timer state into local UI state
+        viewModelScope.launch {
+            repository.timerState.collect { timerData ->
+                _session.value = timerData.session
+                _remainingSeconds.value = timerData.remainingSeconds
+            }
+        }
+
+        startTimerUpdates()
     }
 
     private fun loadPairingState() {
@@ -82,6 +91,12 @@ class WearPairingViewModel @Inject constructor(
         viewModelScope.launch {
             _pairingState.value = PairingState.Unpaired
             _showPairingMenu.value = false
+        }
+    }
+
+    fun requestStart(durationMinutes: Int = 30) {
+        viewModelScope.launch {
+            dataLayerManager.sendTimerStartRequest(durationMinutes)
         }
     }
 
