@@ -21,6 +21,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.safewalk.data.local.SafeWalkRepository
 import com.example.safewalk.pairing.PairingManager
 import com.example.safewalk.permissions.PermissionsManager
+import com.example.safewalk.ui.screens.AlertScreen
 import com.example.safewalk.ui.screens.DashboardScreen
 import com.example.safewalk.ui.screens.EmergencyContactsScreen
 import com.example.safewalk.ui.screens.HistoryScreen
@@ -134,6 +135,9 @@ fun SafeWalkNavigation() {
         }
         composable("pairing") {
             PairingScreen(navController)
+        }
+        composable("alert/{alertType}") {
+            AlertScreen(navController)
         }
     }
 }

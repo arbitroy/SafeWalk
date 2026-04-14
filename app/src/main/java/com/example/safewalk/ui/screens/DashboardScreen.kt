@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.safewalk.data.model.SafeWalkSession
+import com.example.safewalk.ui.viewmodel.DashboardEvent
 import com.example.safewalk.ui.viewmodel.DashboardViewModel
 
 
@@ -95,20 +96,15 @@ fun DashboardScreen(
                         duration = SnackbarDuration.Long,
                     )
                 }
-                is DashboardEvent.SosTriggered -> {
-                    snackbarHostState.showSnackbar(
-                        "SOS Alert sent!",
-                        duration = SnackbarDuration.Long,
-                    )
-                }
                 is DashboardEvent.TimeWarning -> {
                     snackbarHostState.showSnackbar(
                         "5 minutes remaining! Check in soon.",
                         duration = SnackbarDuration.Short,
                     )
                 }
-
-                else -> {}
+                is DashboardEvent.NavigateToAlert -> {
+                    navController.navigate("alert/${event.alertType.name}")
+                }
             }
         }
     }
@@ -497,10 +493,3 @@ fun formatTime(seconds: Int): String {
     return "%d:%02d".format(mins, secs)
 }
 
-// Placeholder events - import from viewmodel in real app
-sealed class DashboardEvent {
-    data object CheckInSuccessful : DashboardEvent()
-    data object CheckInMissed : DashboardEvent()
-    data object SosTriggered : DashboardEvent()
-    data object TimeWarning : DashboardEvent()
-}
