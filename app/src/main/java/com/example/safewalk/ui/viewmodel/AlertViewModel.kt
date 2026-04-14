@@ -11,12 +11,14 @@ import com.example.safewalk.data.model.AlertType
 import com.example.safewalk.data.model.EmergencyContact
 import com.example.safewalk.location.LocationResult
 import com.example.safewalk.location.LocationService
+import com.example.safewalk.sms.SmsAlertSender
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -27,6 +29,8 @@ data class AlertUiState(
     val contacts: List<EmergencyContact> = emptyList(),
     val selectedContactIds: Set<String> = emptySet(),
     val alertedContactIds: Set<String> = emptySet(),
+    /** Contacts that were auto-sent via SmsManager on screen open (starred contacts). */
+    val autoAlertedContactIds: Set<String> = emptySet(),
     val location: LocationResult? = null,
     val isLoadingLocation: Boolean = true,
     val timestamp: String = ZonedDateTime.now(ZoneOffset.UTC)
@@ -37,6 +41,7 @@ data class AlertUiState(
 class AlertViewModel @Inject constructor(
     private val repository: SafeWalkRepository,
     private val locationService: LocationService,
+    private val smsAlertSender: SmsAlertSender,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -46,34 +51,44 @@ class AlertViewModel @Inject constructor(
     init {
         val alertTypeArg = savedStateHandle.get<String>("alertType") ?: "SOS"
         val alertType = if (alertTypeArg == "MISSED") AlertType.MISSED else AlertType.SOS
-
         _uiState.value = _uiState.value.copy(alertType = alertType)
 
         viewModelScope.launch {
+            // 1. Load contacts
             val contacts = repository.getAllContacts().first()
             _uiState.value = _uiState.value.copy(
                 contacts = contacts,
                 selectedContactIds = contacts.map { it.id }.toSet(),
             )
-        }
 
-        viewModelScope.launch {
-            val location = locationService.getCurrentLocation()
-            _uiState.value = _uiState.value.copy(
-                location = location,
-                isLoadingLocation = false,
-            )
+            // 2. Fetch location — give it up to 5 seconds, send anyway if it takes longer
+            val location = withTimeoutOrNull(5_000) { locationService.getCurrentLocation() }
+            _uiState.value = _uiState.value.copy(location = location, isLoadingLocation = false)
+
+            // 3. Auto-send to starred (isPrimary) contacts via SmsManager — no tap needed
+            val primaryContacts = contacts.filter { it.isPrimary }
+            if (primaryContacts.isNotEmpty() && smsAlertSender.canSendSms()) {
+                val message = buildSmsMessage()
+                val autoSent = mutableSetOf<String>()
+                primaryContacts.forEach { contact ->
+                    if (smsAlertSender.sendToContact(contact.phone, message)) {
+                        autoSent += contact.id
+                    }
+                }
+                if (autoSent.isNotEmpty()) {
+                    _uiState.value = _uiState.value.copy(
+                        alertedContactIds = _uiState.value.alertedContactIds + autoSent,
+                        autoAlertedContactIds = autoSent,
+                    )
+                }
+            }
         }
     }
 
     fun toggleContact(contactId: String) {
         val current = _uiState.value.selectedContactIds
         _uiState.value = _uiState.value.copy(
-            selectedContactIds = if (contactId in current) {
-                current - contactId
-            } else {
-                current + contactId
-            },
+            selectedContactIds = if (contactId in current) current - contactId else current + contactId,
         )
     }
 
@@ -89,15 +104,15 @@ class AlertViewModel @Inject constructor(
     }
 
     /**
-     * Opens SMS for the first selected contact that hasn't been alerted yet.
-     * Returns true if an SMS intent was launched, false if all are alerted.
+     * Opens the native SMS app for the first selected, unalerted contact.
+     * Returns true if an intent was launched.
      */
     fun sendToNextPending(context: Context): Boolean {
         val state = _uiState.value
-        val nextContact = state.contacts.firstOrNull { contact ->
+        val next = state.contacts.firstOrNull { contact ->
             contact.id in state.selectedContactIds && contact.id !in state.alertedContactIds
         } ?: return false
-        launchSmsForContact(context, nextContact)
+        launchSmsForContact(context, next)
         return true
     }
 

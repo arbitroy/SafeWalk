@@ -136,6 +136,9 @@ class PermissionsManager @Inject constructor(
 
             // Contacts
             add(Manifest.permission.READ_CONTACTS)
+
+            // SMS — for auto-sending alerts to starred contacts
+            add(Manifest.permission.SEND_SMS)
         }.toTypedArray()
 
         val permissionsToRequest = requiredPermissions.filter { permission ->
@@ -173,6 +176,10 @@ class PermissionsManager @Inject constructor(
         return ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
                 PackageManager.PERMISSION_GRANTED
     }
+
+    fun hasSmsPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) ==
+            PackageManager.PERMISSION_GRANTED
 
     fun hasAllRequiredPermissions(): Boolean {
         return hasBluetoothPermissions() && hasWiFiPermissions() && hasContactsPermission()

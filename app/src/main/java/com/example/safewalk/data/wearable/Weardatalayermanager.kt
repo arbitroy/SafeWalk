@@ -6,6 +6,7 @@ import android.util.Log
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataClient.OnDataChangedListener
 import com.google.android.gms.wearable.DataEvent
+import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
@@ -76,13 +77,19 @@ class WearDataLayerManager @Inject constructor(
 
                             when (event.dataItem.uri.path) {
                                 "/check_in" -> {
-                                    val dataMap = event.dataItem.data
-                                    val status = String(dataMap ?: byteArrayOf())
+                                    val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
+                                    val status = dataMap.getString("status")
+                                        ?: String(event.dataItem.data ?: byteArrayOf())
                                     _wearableEvents.emit(WearableEvent.CheckInReceived(status))
                                 }
 
+                                "/timer_start" -> {
+                                    val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
+                                    val duration = dataMap.getInt("duration_minutes", 30)
+                                    _wearableEvents.emit(WearableEvent.TimerStartRequest(duration))
+                                }
+
                                 "/timer_sync" -> {
-                                    val dataMap = event.dataItem.data
                                     _wearableEvents.emit(WearableEvent.TimerSyncRequest)
                                 }
 
@@ -199,6 +206,7 @@ sealed class WearableEvent {
     data object TimerSyncRequest : WearableEvent()
     data object TimerSent : WearableEvent()
     data class CheckInReceived(val status: String) : WearableEvent()
+    data class TimerStartRequest(val durationMinutes: Int = 30) : WearableEvent()
     data class WearableError(val error: String) : WearableEvent()
     data class SendError(val error: String) : WearableEvent()
 }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.wear.data.SafeWalkSession
 import com.wear.viewmodel.WearTimerViewModel
 
 @Composable
@@ -39,6 +41,7 @@ fun WearTimerScreen(
 ) {
     val session by viewModel.session.collectAsState()
     val remainingSeconds by viewModel.remainingSeconds.collectAsState()
+    val isActive = session is SafeWalkSession.Active
 
     Column(
         modifier = Modifier
@@ -88,20 +91,45 @@ fun WearTimerScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            OutlinedButton(
-                onClick = { viewModel.checkIn("COMPLETED") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(WearUIConstants.BUTTON_HEIGHT),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White,
-                ),
-            ) {
-                Text(
-                    "OK",
-                    fontSize = WearUIConstants.BUTTON_FONT_SIZE,
-                    fontWeight = FontWeight.Bold,
-                )
+            if (isActive) {
+                OutlinedButton(
+                    onClick = { viewModel.checkIn("COMPLETED") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(WearUIConstants.BUTTON_HEIGHT),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    Text(
+                        "OK",
+                        fontSize = WearUIConstants.BUTTON_FONT_SIZE,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            } else {
+                Button(
+                    onClick = { viewModel.requestStart() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(WearUIConstants.BUTTON_HEIGHT),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981),
+                    ),
+                ) {
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        "Start",
+                        fontSize = WearUIConstants.BUTTON_FONT_SIZE,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
+                }
             }
 
             Button(

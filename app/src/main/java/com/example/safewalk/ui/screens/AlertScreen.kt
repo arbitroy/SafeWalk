@@ -194,6 +194,7 @@ fun AlertScreen(
                         contact = contact,
                         isSelected = contact.id in state.selectedContactIds,
                         isAlerted = contact.id in state.alertedContactIds,
+                        isAutoAlerted = contact.id in state.autoAlertedContactIds,
                         onToggle = { viewModel.toggleContact(contact.id) },
                         onSend = { viewModel.launchSmsForContact(context, contact) },
                     )
@@ -375,6 +376,7 @@ private fun ContactAlertRow(
     contact: EmergencyContact,
     isSelected: Boolean,
     isAlerted: Boolean,
+    isAutoAlerted: Boolean,
     onToggle: () -> Unit,
     onSend: () -> Unit,
 ) {
@@ -422,9 +424,17 @@ private fun ContactAlertRow(
                     if (isAlerted) {
                         Icon(
                             Icons.Filled.CheckCircle,
-                            "Alerted",
+                            contentDescription = null,
                             tint = Color(0xFF16A34A),
                             modifier = Modifier.size(16.dp),
+                        )
+                    }
+                    if (isAutoAlerted) {
+                        Text(
+                            "Auto-sent",
+                            fontSize = 10.sp,
+                            color = Color(0xFF16A34A),
+                            fontWeight = FontWeight.SemiBold,
                         )
                     }
                 }

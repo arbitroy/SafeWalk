@@ -27,6 +27,9 @@
     <!-- Contacts -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
+    <!-- SMS — required for auto-sending alerts to starred contacts -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+
     <application
         android:name=".SafeWalkApplication"
         android:allowBackup="true"
