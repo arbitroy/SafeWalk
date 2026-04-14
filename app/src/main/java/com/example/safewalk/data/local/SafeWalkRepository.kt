@@ -60,6 +60,8 @@ class SafeWalkRepository @Inject constructor(
 
     suspend fun addUser(user: User) = dataStore.addUser(user)
 
+    suspend fun updateUser(user: User) = dataStore.updateUser(user)
+
     suspend fun findUserByEmail(email: String): User? = dataStore.findUserByEmail(email)
 
     // ========== Settings ==========
