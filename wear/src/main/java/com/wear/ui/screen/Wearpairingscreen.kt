@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -64,7 +63,7 @@ private fun WearMainScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Status indicator
+        // Status indicator — centred, safe on a circular screen
         Box(
             modifier = Modifier
                 .size(24.dp)
@@ -97,11 +96,10 @@ private fun WearMainScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Action buttons
+        // Action buttons — 75 % width keeps them away from the circular edge
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.75f)
-                .padding(horizontal = 16.dp),
+                .fillMaxWidth(0.75f),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -141,27 +139,34 @@ private fun WearMainScreen(
     }
 }
 
+/**
+ * Pairing menu — displayed when the user taps the status indicator.
+ *
+ * Horizontal padding of 20 % on each side keeps all content inside the
+ * inscribed safe zone of a circular watch face.
+ */
 @Composable
 private fun WearPairingMenuScreen(
     viewModel: WearPairingViewModel,
 ) {
     val pairingState by viewModel.pairingState.collectAsState()
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .background(Color.Black),
+        contentAlignment = Alignment.Center,
     ) {
-        when (pairingState) {
-            WearPairingViewModel.PairingState.Unpaired -> {
-                UnpairedMenuState(viewModel)
-            }
-
-            WearPairingViewModel.PairingState.Paired -> {
-                PairedMenuState(viewModel)
+        // 80 % width = safe zone for circular screens; avoids corner clipping
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.8f),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            when (pairingState) {
+                WearPairingViewModel.PairingState.Unpaired -> UnpairedMenuState(viewModel)
+                WearPairingViewModel.PairingState.Paired   -> PairedMenuState(viewModel)
             }
         }
     }
@@ -170,7 +175,6 @@ private fun WearPairingMenuScreen(
 @Composable
 private fun UnpairedMenuState(viewModel: WearPairingViewModel) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -179,33 +183,27 @@ private fun UnpairedMenuState(viewModel: WearPairingViewModel) {
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White,
+            textAlign = TextAlign.Center,
         )
         Text(
-            "Waiting for phone",
+            "Open SafeWalk on\nyour phone",
             fontSize = 11.sp,
             textAlign = TextAlign.Center,
-            color = Color.White,
+            color = Color(0xFFAAAAAA),
         )
 
         Spacer(Modifier.height(12.dp))
 
-        Row(
+        OutlinedButton(
+            onClick = { viewModel.togglePairingMenu() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(WearUIConstants.BUTTON_HEIGHT),
-            horizontalArrangement = Arrangement.spacedBy(WearUIConstants.BUTTON_GAP),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color.White,
+            ),
         ) {
-            OutlinedButton(
-                onClick = { viewModel.togglePairingMenu() },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(WearUIConstants.BUTTON_HEIGHT),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White,
-                ),
-            ) {
-                Text("Back", fontSize = 11.sp)
-            }
+            Text("Back", fontSize = 11.sp)
         }
     }
 }
@@ -213,7 +211,6 @@ private fun UnpairedMenuState(viewModel: WearPairingViewModel) {
 @Composable
 private fun PairedMenuState(viewModel: WearPairingViewModel) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -229,38 +226,37 @@ private fun PairedMenuState(viewModel: WearPairingViewModel) {
             fontWeight = FontWeight.Bold,
             color = Color.White,
         )
-        Text("Device synced", fontSize = 11.sp, color = Color.White)
+        Text(
+            "Phone connected",
+            fontSize = 11.sp,
+            color = Color(0xFFAAAAAA),
+        )
 
         Spacer(Modifier.height(12.dp))
 
-        Row(
+        // Two buttons stacked vertically — safer than side-by-side on a
+        // circular screen where horizontal extremes get clipped
+        OutlinedButton(
+            onClick = { viewModel.togglePairingMenu() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(WearUIConstants.BUTTON_HEIGHT),
-            horizontalArrangement = Arrangement.spacedBy(WearUIConstants.BUTTON_GAP),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color.White,
+            ),
         ) {
-            OutlinedButton(
-                onClick = { viewModel.togglePairingMenu() },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(WearUIConstants.BUTTON_HEIGHT),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White,
-                ),
-            ) {
-                Text("Back", fontSize = 11.sp)
-            }
-            Button(
-                onClick = { viewModel.unpair() },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(WearUIConstants.BUTTON_HEIGHT),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFDC2626),
-                ),
-            ) {
-                Text("Remove", fontSize = 11.sp)
-            }
+            Text("Back", fontSize = 11.sp)
+        }
+        Button(
+            onClick = { viewModel.unpair() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(WearUIConstants.BUTTON_HEIGHT),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFDC2626),
+            ),
+        ) {
+            Text("Disconnect", fontSize = 11.sp)
         }
     }
 }
