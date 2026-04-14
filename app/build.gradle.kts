@@ -92,4 +92,5 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.compose.bom))
     implementation(libs.play.services.wearable)
+    implementation(libs.kotlinx.coroutines.play.services)
 }

@@ -1,7 +1,9 @@
 package com.wear.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.wearable.Wearable
 import com.wear.data.SafeWalkSession
 import com.wear.data.WearDataLayerManager
 import com.wear.data.WearRepository
@@ -13,12 +15,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 /**
- * Wearable pairing ViewModel - simplified for unidirectional flow.
+ * Wearable pairing ViewModel.
  *
- * No code input needed. Once paired via Android's system dialog,
- * the watch automatically syncs with the phone.
+ * Pairing state is derived from NodeClient.connectedNodes — this directly
+ * reflects whether the phone is connected at the Wearable platform level,
+ * which is what Android Studio / emulator pairing establishes.
  */
 @HiltViewModel
 class WearPairingViewModel @Inject constructor(
@@ -46,51 +50,36 @@ class WearPairingViewModel @Inject constructor(
 
     private fun loadPairingState() {
         viewModelScope.launch {
-            val prefs = dataLayerManager.context.getSharedPreferences("wear_pairing", 0)
-            val pairedDeviceId = prefs.getString("paired_device_id", null)
-
-            _pairingState.value = if (pairedDeviceId != null) {
-                PairingState.Paired
-            } else {
-                PairingState.Unpaired
+            try {
+                val nodes = Wearable.getNodeClient(dataLayerManager.context)
+                    .connectedNodes
+                    .await()
+                _pairingState.value = if (nodes.isNotEmpty()) {
+                    Log.d("WearPairingVM", "Connected to phone: ${nodes.first().displayName}")
+                    PairingState.Paired
+                } else {
+                    Log.d("WearPairingVM", "No phone node connected")
+                    PairingState.Unpaired
+                }
+            } catch (e: Exception) {
+                Log.e("WearPairingVM", "Error checking connection state", e)
+                _pairingState.value = PairingState.Unpaired
             }
         }
     }
 
     fun togglePairingMenu() {
         _showPairingMenu.update { !it }
+        // Re-check live connection state when the user opens the pairing menu
+        if (_showPairingMenu.value) loadPairingState()
     }
 
     /**
-     * Accept pairing from the phone.
-     * Called when Android system pairing dialog is accepted.
-     */
-    fun acceptPairing(pairedDeviceId: String) {
-        viewModelScope.launch {
-            val prefs = dataLayerManager.context.getSharedPreferences("wear_pairing", 0)
-            prefs.edit().apply {
-                putString("paired_device_id", pairedDeviceId)
-                putLong("pairing_time", System.currentTimeMillis())
-                apply()
-            }
-
-            _pairingState.value = PairingState.Paired
-            _showPairingMenu.value = false
-        }
-    }
-
-    /**
-     * Remove pairing.
+     * Clear app-level pairing indicator. Note: the OS-level Wear pairing
+     * remains; use Wear OS / Bluetooth settings to fully unpair.
      */
     fun unpair() {
         viewModelScope.launch {
-            val prefs = dataLayerManager.context.getSharedPreferences("wear_pairing", 0)
-            prefs.edit().apply {
-                remove("paired_device_id")
-                remove("pairing_time")
-                apply()
-            }
-
             _pairingState.value = PairingState.Unpaired
             _showPairingMenu.value = false
         }

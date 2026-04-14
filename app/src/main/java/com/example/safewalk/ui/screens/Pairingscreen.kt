@@ -62,7 +62,7 @@ fun PairingScreen(
         viewModel.pairingEvent.collect { event ->
             when (event) {
                 PairingViewModel.PairingEvent.PairingInitiated -> {
-                    snackbarHostState.showSnackbar("Check wearable for pairing request")
+                    snackbarHostState.showSnackbar("Searching for connected wearable...")
                 }
                 PairingViewModel.PairingEvent.PairingSuccess -> {
                     snackbarHostState.showSnackbar("Device paired successfully!")
@@ -144,7 +144,7 @@ private fun UnpairedState(viewModel: PairingViewModel) {
         }
 
         Text(
-            "Follow these steps to pair your wearable device:",
+            "Follow these steps to connect your wearable:",
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -158,26 +158,20 @@ private fun UnpairedState(viewModel: PairingViewModel) {
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                StepItem("1", "Tap the button below to start pairing")
-                StepItem("2", "A system pairing dialog will appear")
-                StepItem("3", "Accept the pairing request on your wearable")
-                StepItem("4", "Devices will sync automatically")
+                StepItem("1", "Pair your watch in Android's Bluetooth / Wear OS settings")
+                StepItem("2", "Make sure the SafeWalk watch app is running")
+                StepItem("3", "Tap the button below to detect the connection")
+                StepItem("4", "Data will sync automatically once detected")
             }
         }
 
         Button(
-            onClick = {
-                // In production, scan for nearby devices first
-                viewModel.scanAndPair(
-                    remoteDeviceAddress = "wear_emulator_001",
-                    remoteDeviceName = "SafeWalk Watch"
-                )
-            },
+            onClick = { viewModel.checkConnection() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
         ) {
-            Text("Start Pairing", fontSize = 16.sp)
+            Text("Check Connection", fontSize = 16.sp)
         }
     }
 }

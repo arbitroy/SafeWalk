@@ -11,11 +11,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * Simplified pairing ViewModel using unidirectional flow.
- *
- * No code verification needed - Android's native pairing handles authentication.
- */
 @HiltViewModel
 class PairingViewModel @Inject constructor(
     private val pairingManager: PairingManager,
@@ -28,33 +23,19 @@ class PairingViewModel @Inject constructor(
     val pairingEvent = _pairingEvent.asSharedFlow()
 
     /**
-     * Scan for nearby Bluetooth devices and initiate pairing.
-     * In production, this would use BLE scanning with proper discovery.
+     * Query the Wearable Data Layer for connected nodes.
+     * Replaces the old Bluetooth-based scan — no custom handshake required.
      */
-    fun scanAndPair(remoteDeviceAddress: String, remoteDeviceName: String) {
+    fun checkConnection() {
         viewModelScope.launch {
-            val success = pairingManager.startBluetoothPairing(remoteDeviceAddress, remoteDeviceName)
-
-            if (success) {
-                _pairingEvent.emit(PairingEvent.PairingInitiated)
-            } else {
-                _pairingEvent.emit(PairingEvent.PairingFailed("Failed to initiate pairing"))
-            }
-        }
-    }
-
-    /**
-     * Confirm pairing after user accepts on wearable.
-     * Called when Android system notifies pairing is complete.
-     */
-    fun confirmPairingComplete(remoteDeviceAddress: String, remoteDeviceName: String) {
-        viewModelScope.launch {
-            val success = pairingManager.completePairing(remoteDeviceAddress, remoteDeviceName)
-
-            if (success) {
+            _pairingEvent.emit(PairingEvent.PairingInitiated)
+            val connected = pairingManager.checkWearableConnection()
+            if (connected) {
                 _pairingEvent.emit(PairingEvent.PairingSuccess)
             } else {
-                _pairingEvent.emit(PairingEvent.PairingFailed("Failed to complete pairing"))
+                _pairingEvent.emit(
+                    PairingEvent.PairingFailed("No wearable found. Make sure your watch is paired and nearby.")
+                )
             }
         }
     }
@@ -62,7 +43,6 @@ class PairingViewModel @Inject constructor(
     fun unpair() {
         viewModelScope.launch {
             val success = pairingManager.unpair()
-
             if (success) {
                 _pairingEvent.emit(PairingEvent.Unpaired)
             } else {
