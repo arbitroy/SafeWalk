@@ -20,7 +20,6 @@ import kotlinx.coroutines.launch
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import java.util.UUID
 import javax.inject.Inject
 
 data class AlertUiState(
@@ -30,7 +29,6 @@ data class AlertUiState(
     val alertedContactIds: Set<String> = emptySet(),
     val location: LocationResult? = null,
     val isLoadingLocation: Boolean = true,
-    val alertId: String = UUID.randomUUID().toString().take(12),
     val timestamp: String = ZonedDateTime.now(ZoneOffset.UTC)
         .format(DateTimeFormatter.ISO_INSTANT),
 )
@@ -117,8 +115,7 @@ class AlertViewModel @Inject constructor(
         }
         return "SAFE WALK ALERT: I need immediate help!" +
             "$locationPart" +
-            " Time: ${state.timestamp}" +
-            " Track me: https://safewalk.app/tracking/${state.alertId}"
+            " Time: ${state.timestamp}"
     }
 
     private fun markContactAlerted(contactId: String) {

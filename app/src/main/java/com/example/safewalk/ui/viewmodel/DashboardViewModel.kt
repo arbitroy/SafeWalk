@@ -98,6 +98,10 @@ class DashboardViewModel @Inject constructor(
             while (true) {
                 if (_session.value is SafeWalkSession.Active) {
                     delay(1000)
+                    // Re-check after the delay: the user may have checked in or stopped
+                    // the walk during the 1-second sleep, which resets _remainingSeconds
+                    // to 0. Without this guard, 0 - 1 = -1 fires a spurious MISSED alert.
+                    if (_session.value !is SafeWalkSession.Active) continue
                     val newValue = _remainingSeconds.value - 1
                     when {
                         newValue <= 0 -> {
