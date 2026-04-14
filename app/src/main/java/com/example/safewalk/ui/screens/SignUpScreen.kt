@@ -82,8 +82,19 @@ fun SignUpScreen(
                         popUpTo("signup") { inclusive = true }
                     }
                 }
+                is AuthEvent.GuestLoginSuccess -> {
+                    navController.navigate("dashboard") {
+                        popUpTo("signup") { inclusive = true }
+                    }
+                }
                 else -> {}
             }
+        }
+    }
+
+    LaunchedEffect(authState) {
+        if (authState is AuthState.Error) {
+            snackbarHostState.showSnackbar((authState as AuthState.Error).message)
         }
     }
 
@@ -214,7 +225,7 @@ fun SignUpScreen(
 
                     // Sign Up Button
                     Button(
-                        onClick = { viewModel.signup(name, email, password) },
+                        onClick = { viewModel.signup(name, email, password, confirmPassword) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),

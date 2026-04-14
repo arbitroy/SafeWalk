@@ -50,7 +50,9 @@ class SafeWalkDataStore @Inject constructor(
     // ========== Current User ==========
 
     val currentUser: Flow<User?> = dataStore.data.map { preferences ->
-        null
+        preferences[CURRENT_USER]?.let {
+            try { json.decodeFromString<User>(it) } catch (e: Exception) { null }
+        }
     }
 
     suspend fun setCurrentUser(user: User) {
@@ -105,6 +107,27 @@ class SafeWalkDataStore @Inject constructor(
         }
     }
 
+    suspend fun updateUser(user: User) {
+        dataStore.edit { preferences ->
+            val usersJson = preferences[USERS_JSON] ?: "[]"
+            val users = try {
+                json.decodeFromString<MutableList<User>>(usersJson)
+            } catch (e: Exception) {
+                mutableListOf()
+            }
+            users.removeAll { it.id == user.id }
+            users.add(user)
+            preferences[USERS_JSON] = json.encodeToString(users)
+            // Keep current user in sync if it's the same user
+            preferences[CURRENT_USER]?.let { currentJson ->
+                val current = try { json.decodeFromString<User>(currentJson) } catch (e: Exception) { null }
+                if (current?.id == user.id) {
+                    preferences[CURRENT_USER] = json.encodeToString(user)
+                }
+            }
+        }
+    }
+
     suspend fun findUserByEmail(email: String): User? {
         val usersJson = dataStore.data.map { preferences ->
             preferences[USERS_JSON] ?: "[]"
@@ -139,7 +162,9 @@ class SafeWalkDataStore @Inject constructor(
     // ========== User Profile ==========
 
     val userProfile: Flow<UserProfile?> = dataStore.data.map { preferences ->
-        null
+        preferences[USER_PROFILE]?.let {
+            try { json.decodeFromString<UserProfile>(it) } catch (e: Exception) { null }
+        }
     }
 
     suspend fun saveProfile(profile: UserProfile) {
