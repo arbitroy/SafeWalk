@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.safewalk.data.local.SafeWalkRepository
 import com.example.safewalk.data.model.AlertType
 import com.example.safewalk.data.model.EmergencyContact
+import com.example.safewalk.data.model.UserProfile
 import com.example.safewalk.location.LocationResult
 import com.example.safewalk.location.LocationService
 import com.example.safewalk.sms.SmsAlertSender
@@ -33,6 +34,8 @@ data class AlertUiState(
     val autoAlertedContactIds: Set<String> = emptySet(),
     val location: LocationResult? = null,
     val isLoadingLocation: Boolean = true,
+    val senderName: String = "",
+    val userProfile: UserProfile? = null,
     val timestamp: String = ZonedDateTime.now(ZoneOffset.UTC)
         .format(DateTimeFormatter.ISO_INSTANT),
 )
@@ -54,14 +57,19 @@ class AlertViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(alertType = alertType)
 
         viewModelScope.launch {
-            // 1. Load contacts
+            // 1. Load contacts, user info, and profile in parallel
             val contacts = repository.getAllContacts().first()
+            val currentUser = repository.getCurrentUser().first()
+            val profile = repository.getUserProfile().first()
+
             _uiState.value = _uiState.value.copy(
                 contacts = contacts,
                 selectedContactIds = contacts.map { it.id }.toSet(),
+                senderName = currentUser?.name ?: "",
+                userProfile = profile,
             )
 
-            // 2. Fetch location — give it up to 5 seconds, send anyway if it takes longer
+            // 2. Fetch location — give it up to 5 seconds, proceed anyway if slower
             val location = withTimeoutOrNull(5_000) { locationService.getCurrentLocation() }
             _uiState.value = _uiState.value.copy(location = location, isLoadingLocation = false)
 
@@ -118,18 +126,35 @@ class AlertViewModel @Inject constructor(
 
     fun buildSmsMessage(): String {
         val state = _uiState.value
-        val location = state.location
-        val locationPart = if (location != null) {
-            buildString {
-                if (location.address.isNotEmpty()) append(" Location: ${location.address}.")
-                append(" GPS: ${location.formattedGps}.")
-                append(" Map: ${location.googleMapsUrl}")
-            }
+        val profile = state.userProfile
+
+        // Custom emergency message takes precedence over the default text
+        val headline = if (!profile?.emergencyMessage.isNullOrBlank()) {
+            profile!!.emergencyMessage.trim()
         } else {
-            " Location unavailable."
+            "I need immediate help!"
         }
-        return "SAFE WALK ALERT: I need immediate help!" +
+
+        val locationPart = state.location?.let { loc ->
+            buildString {
+                if (loc.address.isNotEmpty()) append(" Location: ${loc.address}.")
+                append(" GPS: ${loc.formattedGps}.")
+                append(" Map: ${loc.googleMapsUrl}")
+            }
+        } ?: " Location unavailable."
+
+        val fromPart = if (state.senderName.isNotBlank()) " From: ${state.senderName}." else ""
+
+        val medicalPart = if (!profile?.medicalInfo.isNullOrBlank()) {
+            " Medical info: ${profile!!.medicalInfo.trim()}."
+        } else {
+            ""
+        }
+
+        return "SAFE WALK ALERT: $headline" +
+            "$fromPart" +
             "$locationPart" +
+            "$medicalPart" +
             " Time: ${state.timestamp}"
     }
 
