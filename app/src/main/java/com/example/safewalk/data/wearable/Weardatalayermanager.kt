@@ -60,63 +60,82 @@ class WearDataLayerManager @Inject constructor(
      * Safe to call multiple times — no-ops if already paired.
      */
     suspend fun ensureConnected() {
-        if (pairingManager.pairedDevice.value == null) {
+        val current = pairingManager.pairedDevice.value
+        Log.d("SW_PHONE_DL", "ensureConnected() — current pairedDevice=${current?.remoteDeviceId ?: "NULL"}")
+        if (current == null) {
+            Log.d("SW_PHONE_DL", "No cached pairing — calling checkWearableConnection()")
             pairingManager.checkWearableConnection()
+            val after = pairingManager.pairedDevice.value
+            Log.d("SW_PHONE_DL", "After discovery: pairedDevice=${after?.remoteDeviceId ?: "STILL NULL — no watch found"}")
+        } else {
+            Log.d("SW_PHONE_DL", "Already paired with remoteId=${current.remoteDeviceId} name='${current.remoteDeviceName}'")
         }
     }
 
     fun startListening(scope: CoroutineScope) {
+        Log.d("SW_PHONE_DL", "startListening() called — registering DataClient listener on phone")
         scope.launch {
             dataClient.dataFlow
-                .catch { e -> Log.e("DataLayer", "Error listening", e) }
+                .catch { e -> Log.e("SW_PHONE_DL", "Error in dataFlow", e) }
                 .collect { event ->
-                    if (event.type != DataEvent.TYPE_CHANGED &&
-                        event.type != DataEvent.TYPE_DELETED) return@collect
-
+                    val typeStr = when (event.type) {
+                        DataEvent.TYPE_CHANGED -> "TYPE_CHANGED"
+                        DataEvent.TYPE_DELETED -> "TYPE_DELETED"
+                        else                  -> "TYPE_UNKNOWN(${event.type})"
+                    }
                     val path = event.dataItem.uri.path
+                    val host = event.dataItem.uri.host
+                    Log.d("SW_PHONE_DL", "Event: type=$typeStr  path=$path  host=$host")
 
-                    // Only process paths that the watch sends to us.
-                    // The Wearable Data Layer is authenticated at the OS level, so
-                    // strict source validation is a secondary defence — we do it when
-                    // we have a cached pairing, but we never silently drop events just
-                    // because the cache is empty (e.g. fresh install, cleared prefs).
+                    if (event.type != DataEvent.TYPE_CHANGED &&
+                        event.type != DataEvent.TYPE_DELETED) {
+                        Log.d("SW_PHONE_DL", "Skipping non-CHANGED/DELETED event")
+                        return@collect
+                    }
+
                     val knownWatchPaths = setOf("/check_in", "/timer_start", "/timer_sync", "/error")
-                    if (path !in knownWatchPaths) return@collect
+                    if (path !in knownWatchPaths) {
+                        Log.d("SW_PHONE_DL", "Path '$path' not in watch paths — ignoring (this is normal for /timer_state sent by phone itself)")
+                        return@collect
+                    }
 
                     val pairedDevice = pairingManager.pairedDevice.value
+                    Log.d("SW_PHONE_DL", "Processing path=$path  pairedDevice=${pairedDevice?.remoteDeviceId ?: "NULL"}  eventHost=$host")
+
                     if (pairedDevice != null) {
-                        val source = event.dataItem.uri.host
-                        if (!validateMessageSource(source, pairedDevice.remoteDeviceId)) {
-                            Log.w("DataLayer", "Ignoring data from unpaired source: $source")
+                        if (!validateMessageSource(host, pairedDevice.remoteDeviceId)) {
+                            Log.w("SW_PHONE_DL", "Source mismatch — host=$host expected=${pairedDevice.remoteDeviceId} — IGNORING")
                             return@collect
                         }
+                        Log.d("SW_PHONE_DL", "Source validated OK: $host == ${pairedDevice.remoteDeviceId}")
                     } else {
-                        // No pairing cached yet — accept the event and opportunistically
-                        // discover the node so future sends work immediately.
-                        Log.d("DataLayer", "No pairing cached; accepting event from watch and auto-discovering")
+                        Log.w("SW_PHONE_DL", "No pairing cached — accepting event and auto-discovering")
                         pairingManager.checkWearableConnection()
                     }
 
+                    Log.d("SW_PHONE_DL", "Dispatching event for path=$path")
                     when (path) {
                         "/check_in" -> {
                             val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
                             val status = dataMap.getString("status")
                                 ?: String(event.dataItem.data ?: byteArrayOf())
+                            Log.d("SW_PHONE_DL", "/check_in received — status='$status' — emitting CheckInReceived")
                             _wearableEvents.emit(WearableEvent.CheckInReceived(status))
                         }
 
                         "/timer_start" -> {
-                            // Emit without the duration — the phone will use its own
-                            // configured default so the watch always reflects the right value.
+                            Log.d("SW_PHONE_DL", "/timer_start received from watch — emitting TimerStartRequest (phone will use own settings)")
                             _wearableEvents.emit(WearableEvent.TimerStartRequest)
                         }
 
                         "/timer_sync" -> {
+                            Log.d("SW_PHONE_DL", "/timer_sync received — emitting TimerSyncRequest")
                             _wearableEvents.emit(WearableEvent.TimerSyncRequest)
                         }
 
                         "/error" -> {
                             val errorMsg = String(event.dataItem.data ?: byteArrayOf())
+                            Log.d("SW_PHONE_DL", "/error received: $errorMsg")
                             _wearableEvents.emit(WearableEvent.WearableError(errorMsg))
                         }
                     }
@@ -130,9 +149,11 @@ class WearDataLayerManager @Inject constructor(
         remainingSeconds: Int,
         startLocation: String? = null,
     ): Boolean {
+        Log.d("SW_PHONE_DL", "sendTimerUpdate() called: isActive=$isActive  duration=${durationMinutes}min  remaining=${remainingSeconds}s")
         return try {
-            // Discover the watch node if we don't have it cached yet.
             ensureConnected()
+            val pairedAfter = pairingManager.pairedDevice.value
+            Log.d("SW_PHONE_DL", "sendTimerUpdate: pairedDevice after ensureConnected=${pairedAfter?.remoteDeviceId ?: "NULL"}")
 
             val timerData = TimerSyncData(
                 isActive = isActive,
@@ -143,23 +164,21 @@ class WearDataLayerManager @Inject constructor(
             )
 
             val jsonString = json.encodeToString(timerData)
+            Log.d("SW_PHONE_DL", "Sending /timer_state JSON: $jsonString")
+
             val request = PutDataMapRequest.create("/timer_state").apply {
                 dataMap.putByteArray("payload", jsonString.toByteArray())
                 dataMap.putString("source_device_id", pairingManager.deviceId)
-                // target_device_id is optional metadata; PutDataMapRequest broadcasts
-                // to all connected nodes automatically.
-                pairingManager.pairedDevice.value?.let {
-                    dataMap.putString("target_device_id", it.remoteDeviceId)
-                }
+                pairedAfter?.let { dataMap.putString("target_device_id", it.remoteDeviceId) }
                 dataMap.putLong("timestamp", System.currentTimeMillis())
             }.asPutDataRequest().setUrgent()
 
             dataClient.putDataItem(request).await()
-            Log.d("DataLayer", "Timer state sent: active=$isActive remaining=${remainingSeconds}s")
+            Log.d("SW_PHONE_DL", "/timer_state PUT succeeded — watch should receive DataEvent now")
             _wearableEvents.emit(WearableEvent.TimerSent)
             true
         } catch (e: Exception) {
-            Log.e("DataLayer", "Error sending timer update", e)
+            Log.e("SW_PHONE_DL", "Error sending timer update", e)
             _wearableEvents.emit(WearableEvent.SendError(e.message ?: "Unknown error"))
             false
         }

@@ -38,30 +38,43 @@ class WearDataLayerManager @Inject constructor(
         }
 
     fun startListening(scope: CoroutineScope) {
+        Log.d("SW_WEAR_DL", "startListening() called — registering DataClient listener")
         scope.launch {
             dataClient.dataFlow
-                .catch { e -> Log.e("WearDataLayer", "Error listening", e) }
+                .catch { e -> Log.e("SW_WEAR_DL", "Error in dataFlow", e) }
                 .collect { event ->
-                    if (event.type != DataEvent.TYPE_CHANGED) return@collect
-                    when (event.dataItem.uri.path) {
+                    val typeStr = when (event.type) {
+                        DataEvent.TYPE_CHANGED -> "TYPE_CHANGED"
+                        DataEvent.TYPE_DELETED -> "TYPE_DELETED"
+                        else                  -> "TYPE_UNKNOWN(${event.type})"
+                    }
+                    val path = event.dataItem.uri.path
+                    val host = event.dataItem.uri.host
+                    Log.d("SW_WEAR_DL", "Event received: type=$typeStr  path=$path  host=$host")
+
+                    if (event.type != DataEvent.TYPE_CHANGED) {
+                        Log.d("SW_WEAR_DL", "Skipping non-CHANGED event for path=$path")
+                        return@collect
+                    }
+
+                    when (path) {
                         "/timer_state" -> {
-                            val payload = DataMapItem.fromDataItem(event.dataItem)
-                                .dataMap
-                                .getByteArray("payload")
+                            val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
+                            val payload = dataMap.getByteArray("payload")
+                            Log.d("SW_WEAR_DL", "/timer_state received — payload=${if (payload == null) "NULL" else "${payload.size} bytes: ${String(payload, Charsets.UTF_8)}"}")
                             repository.updateTimerState(payload)
-                            Log.d("WearDataLayer", "Timer state synced from phone")
                         }
                         "/contacts" -> {
                             val payload = DataMapItem.fromDataItem(event.dataItem)
-                                .dataMap
-                                .getByteArray("payload")
+                                .dataMap.getByteArray("payload")
+                            Log.d("SW_WEAR_DL", "/contacts received — payload=${payload?.size ?: "NULL"} bytes")
                             repository.updateContacts(payload)
-                            Log.d("WearDataLayer", "Contacts synced from phone")
                         }
                         "/pairing_confirm" -> {
                             val code = String(event.dataItem.data ?: byteArrayOf())
-                            Log.d("WearDataLayer", "Pairing confirm: $code")
+                            Log.d("SW_WEAR_DL", "/pairing_confirm received: $code")
                         }
+                        else -> Log.d("SW_WEAR_DL", "Ignoring unhandled path: $path")
                     }
                 }
         }
@@ -69,47 +82,50 @@ class WearDataLayerManager @Inject constructor(
 
     suspend fun sendCheckIn(status: String) {
         try {
-            val pairedDeviceId = pairedDeviceId() ?: run {
-                Log.w("WearDataLayer", "Cannot send check-in: device not paired")
-                return
-            }
+            val pairedDeviceId = pairedDeviceId()
+            Log.d("SW_WEAR_DL", "sendCheckIn($status) — pairedDeviceId from prefs='$pairedDeviceId'")
+            // Send regardless of pairedDeviceId; PutDataMapRequest broadcasts to all nodes.
             val request = PutDataMapRequest.create("/check_in").apply {
                 dataMap.putLong("timestamp", System.currentTimeMillis())
                 dataMap.putString("status", status)
                 dataMap.putString("device", "wear")
-                dataMap.putString("target_device_id", pairedDeviceId)
+                pairedDeviceId?.let { dataMap.putString("target_device_id", it) }
             }.asPutDataRequest().setUrgent()
+            Log.d("SW_WEAR_DL", "Putting /check_in item to DataClient...")
             dataClient.putDataItem(request).await()
-            Log.d("WearDataLayer", "Check-in sent: $status")
+            Log.d("SW_WEAR_DL", "/check_in PUT succeeded for status=$status")
         } catch (e: Exception) {
-            Log.e("WearDataLayer", "Error sending check-in", e)
+            Log.e("SW_WEAR_DL", "Error sending check-in", e)
         }
     }
 
     /**
-     * Asks the phone to start a SafeWalk session with the given duration.
+     * Asks the phone to start a SafeWalk session.
      * The phone is source of truth — it will send back the authoritative timer state.
      */
     suspend fun sendTimerStartRequest(durationMinutes: Int = 30) {
         try {
-            val pairedDeviceId = pairedDeviceId() ?: run {
-                Log.w("WearDataLayer", "Cannot request timer start: device not paired")
-                return
-            }
+            val pairedDeviceId = pairedDeviceId()
+            Log.d("SW_WEAR_DL", "sendTimerStartRequest(${durationMinutes}min) — pairedDeviceId from prefs='$pairedDeviceId'")
+            // Send regardless of pairedDeviceId; PutDataMapRequest broadcasts to all nodes.
             val request = PutDataMapRequest.create("/timer_start").apply {
                 dataMap.putInt("duration_minutes", durationMinutes)
                 dataMap.putLong("timestamp", System.currentTimeMillis())
                 dataMap.putString("device", "wear")
-                dataMap.putString("target_device_id", pairedDeviceId)
+                pairedDeviceId?.let { dataMap.putString("target_device_id", it) }
             }.asPutDataRequest().setUrgent()
+            Log.d("SW_WEAR_DL", "Putting /timer_start item to DataClient...")
             dataClient.putDataItem(request).await()
-            Log.d("WearDataLayer", "Timer start request sent ($durationMinutes min)")
+            Log.d("SW_WEAR_DL", "/timer_start PUT succeeded (${durationMinutes}min)")
         } catch (e: Exception) {
-            Log.e("WearDataLayer", "Error sending timer start request", e)
+            Log.e("SW_WEAR_DL", "Error sending timer start request", e)
         }
     }
 
-    private fun pairedDeviceId(): String? =
-        context.getSharedPreferences("wear_pairing", 0)
+    private fun pairedDeviceId(): String? {
+        val id = context.getSharedPreferences("wear_pairing", 0)
             .getString("paired_device_id", null)
+        Log.d("SW_WEAR_DL", "pairedDeviceId() = ${id ?: "NULL (not set in wear_pairing prefs)"}")
+        return id
+    }
 }

@@ -11,6 +11,7 @@ import com.example.safewalk.data.model.SafeWalkSession
 import com.example.safewalk.data.model.User
 import com.example.safewalk.data.wearable.WearDataLayerManager
 import com.example.safewalk.data.wearable.WearableEvent
+import android.util.Log
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -44,22 +45,28 @@ class DashboardViewModel @Inject constructor(
     val uiEvent = _uiEvent.asSharedFlow()
 
     init {
-        // Eagerly discover the paired watch so sends and receives work immediately,
-        // without requiring the user to manually visit the Pairing screen first.
-        viewModelScope.launch { wearDataLayerManager.ensureConnected() }
+        Log.d("SW_PHONE_VM", "DashboardViewModel init")
+        viewModelScope.launch {
+            Log.d("SW_PHONE_VM", "Calling ensureConnected() on startup")
+            wearDataLayerManager.ensureConnected()
+            Log.d("SW_PHONE_VM", "ensureConnected() completed")
+        }
         startTimerUpdates()
         listenForWearableEvents()
     }
 
     fun startSafeWalk(durationMinutes: Int? = null) {
+        Log.d("SW_PHONE_VM", "startSafeWalk(durationMinutes=$durationMinutes) called")
         viewModelScope.launch {
             val duration = durationMinutes
                 ?: repository.getSettings().first().defaultDuration
+            Log.d("SW_PHONE_VM", "Resolved duration=${duration}min — creating Active session")
             _session.value = SafeWalkSession.Active(
                 durationMinutes = duration,
                 remainingSeconds = duration * 60,
             )
             _remainingSeconds.value = duration * 60
+            Log.d("SW_PHONE_VM", "Session set to Active, syncing to watch now")
             syncTimerToWatch(isActive = true, duration = duration, remaining = duration * 60)
         }
     }
@@ -141,20 +148,27 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun listenForWearableEvents() {
+        Log.d("SW_PHONE_VM", "listenForWearableEvents() — starting listener and event collector")
         wearDataLayerManager.startListening(viewModelScope)
         viewModelScope.launch {
             wearDataLayerManager.wearableEvents.collect { event ->
+                Log.d("SW_PHONE_VM", "WearableEvent received: ${event::class.simpleName}")
                 when (event) {
-                    is WearableEvent.CheckInReceived -> when (event.status) {
-                        "COMPLETED" -> stopSafeWalk()
-                        "SOS" -> triggerSOS()
+                    is WearableEvent.CheckInReceived -> {
+                        Log.d("SW_PHONE_VM", "CheckInReceived status='${event.status}'")
+                        when (event.status) {
+                            "COMPLETED" -> stopSafeWalk()
+                            "SOS"       -> triggerSOS()
+                            else        -> Log.w("SW_PHONE_VM", "Unknown check-in status: ${event.status}")
+                        }
                     }
-                    // Watch-initiated start: use the phone's own configured default duration,
-                    // not whatever the watch hardcoded. This ensures the watch always
-                    // reflects the duration the user set in Settings.
-                    is WearableEvent.TimerStartRequest -> startSafeWalk(null)
+                    is WearableEvent.TimerStartRequest -> {
+                        Log.d("SW_PHONE_VM", "TimerStartRequest from watch — calling startSafeWalk(null) to use phone settings")
+                        startSafeWalk(null)
+                    }
                     is WearableEvent.TimerSyncRequest -> {
                         val s = _session.value
+                        Log.d("SW_PHONE_VM", "TimerSyncRequest — current session=${s::class.simpleName}")
                         if (s is SafeWalkSession.Active) {
                             syncTimerToWatch(
                                 isActive = true,
@@ -163,7 +177,7 @@ class DashboardViewModel @Inject constructor(
                             )
                         }
                     }
-                    else -> Unit
+                    else -> Log.d("SW_PHONE_VM", "Unhandled event: ${event::class.simpleName}")
                 }
             }
         }
@@ -178,6 +192,7 @@ class DashboardViewModel @Inject constructor(
         val active = isActive ?: (s is SafeWalkSession.Active)
         val dur = duration ?: if (s is SafeWalkSession.Active) s.durationMinutes else 0
         val rem = remaining ?: _remainingSeconds.value
+        Log.d("SW_PHONE_VM", "syncTimerToWatch: active=$active  duration=${dur}min  remaining=${rem}s")
         viewModelScope.launch {
             wearDataLayerManager.sendTimerUpdate(
                 isActive = active,
