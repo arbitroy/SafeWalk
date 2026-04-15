@@ -26,14 +26,18 @@ class WearRepository @Inject constructor() {
     private val json = Json { ignoreUnknownKeys = true }
 
     fun updateTimerState(data: ByteArray?) {
+        Log.d("SW_WEAR_REPO", "updateTimerState() called — data=${if (data == null) "NULL" else "${data.size} bytes"}")
         try {
             if (data == null) {
+                Log.w("SW_WEAR_REPO", "Payload is null — resetting to Idle")
                 _timerState.value = TimerState(SafeWalkSession.Idle, 0)
                 return
             }
 
             val jsonString = String(data, Charsets.UTF_8)
+            Log.d("SW_WEAR_REPO", "Raw JSON from phone: $jsonString")
             val timerData = json.decodeFromString<TimerStateData>(jsonString)
+            Log.d("SW_WEAR_REPO", "Parsed: isActive=${timerData.isActive}  duration=${timerData.durationMinutes}min  remaining=${timerData.remainingSeconds}s")
 
             val session = if (timerData.isActive) {
                 SafeWalkSession.Active(
@@ -46,9 +50,11 @@ class WearRepository @Inject constructor() {
                 SafeWalkSession.Idle
             }
 
-            _timerState.value = TimerState(session, timerData.remainingSeconds)
+            val newState = TimerState(session, timerData.remainingSeconds)
+            Log.d("SW_WEAR_REPO", "Setting timerState → session=${session::class.simpleName}  remaining=${timerData.remainingSeconds}s")
+            _timerState.value = newState
         } catch (e: Exception) {
-            Log.e("WearRepository", "Failed to deserialize timer state", e)
+            Log.e("SW_WEAR_REPO", "Failed to deserialize timer state", e)
             _timerState.value = TimerState(SafeWalkSession.Idle, 0)
         }
     }

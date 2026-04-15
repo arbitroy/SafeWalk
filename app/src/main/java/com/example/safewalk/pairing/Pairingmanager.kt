@@ -72,17 +72,19 @@ class PairingManager @Inject constructor(
      * pairing establishes. No custom Bluetooth handshake is required.
      */
     suspend fun checkWearableConnection(): Boolean {
+        Log.d("SW_PAIRING", "checkWearableConnection() — querying NodeClient for connected nodes")
         return try {
             val nodes = nodeClient.connectedNodes.await()
+            Log.d("SW_PAIRING", "NodeClient returned ${nodes.size} node(s): ${nodes.map { "${it.displayName}(id=${it.id} nearby=${it.isNearby})" }}")
             if (nodes.isNotEmpty()) {
                 val node = nodes.first()
+                Log.d("SW_PAIRING", "Using first node: displayName='${node.displayName}'  id='${node.id}'  isNearby=${node.isNearby}")
                 val device = PairedDevice(
                     localDeviceId = deviceId,
-                    remoteDeviceId = node.id,        // Wearable node ID (not a BT MAC)
+                    remoteDeviceId = node.id,
                     remoteDeviceName = node.displayName,
                     pairingTimestamp = System.currentTimeMillis(),
                 )
-                // Persist so the cache is fresh for the next cold start
                 val prefs = context.getSharedPreferences("safewalk_pairing", Context.MODE_PRIVATE)
                 prefs.edit().apply {
                     putString("remote_device_address", node.id)
@@ -92,12 +94,12 @@ class PairingManager @Inject constructor(
                 }
                 _pairedDevice.value = device
                 _pairingState.value = PairingState.Paired(device)
-                Log.d("PairingManager", "Connected node found: ${node.displayName} (${node.id})")
+                Log.d("SW_PAIRING", "Pairing cached ✓ remoteId='${node.id}' name='${node.displayName}'")
                 true
             } else {
+                Log.w("SW_PAIRING", "No connected nodes found — check that watch is paired in Wear OS / BT settings and nearby")
                 _pairedDevice.value = null
                 _pairingState.value = PairingState.Unpaired
-                // Clear stale cache so the next cold-start doesn't show a ghost device
                 val prefs = context.getSharedPreferences("safewalk_pairing", Context.MODE_PRIVATE)
                 prefs.edit().apply {
                     remove("remote_device_address")
@@ -105,11 +107,10 @@ class PairingManager @Inject constructor(
                     remove("pairing_timestamp")
                     apply()
                 }
-                Log.d("PairingManager", "No connected nodes found")
                 false
             }
         } catch (e: Exception) {
-            Log.e("PairingManager", "Error checking wearable connection", e)
+            Log.e("SW_PAIRING", "Error checking wearable connection", e)
             _pairingState.value = PairingState.Error("Failed to check connection: ${e.message}")
             false
         }

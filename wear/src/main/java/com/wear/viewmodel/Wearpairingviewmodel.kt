@@ -43,14 +43,19 @@ class WearPairingViewModel @Inject constructor(
     val showPairingMenu: StateFlow<Boolean> = _showPairingMenu.asStateFlow()
 
     init {
+        Log.d("SW_WEAR_VM", "WearPairingViewModel init — starting up")
         loadPairingState()
         dataLayerManager.startListening(viewModelScope)
 
         // Mirror phone-authoritative timer state into local UI state
         viewModelScope.launch {
+            Log.d("SW_WEAR_VM", "Starting repository.timerState collector")
             repository.timerState.collect { timerData ->
+                val sessionName = timerData.session::class.simpleName
+                Log.d("SW_WEAR_VM", "repository.timerState emitted → session=$sessionName  remaining=${timerData.remainingSeconds}s")
                 _session.value = timerData.session
                 _remainingSeconds.value = timerData.remainingSeconds
+                Log.d("SW_WEAR_VM", "_session and _remainingSeconds updated — UI should refresh")
             }
         }
 
@@ -63,15 +68,16 @@ class WearPairingViewModel @Inject constructor(
                 val nodes = Wearable.getNodeClient(dataLayerManager.context)
                     .connectedNodes
                     .await()
+                Log.d("SW_WEAR_VM", "loadPairingState: found ${nodes.size} connected node(s): ${nodes.map { "${it.displayName}(${it.id})" }}")
                 _pairingState.value = if (nodes.isNotEmpty()) {
-                    Log.d("WearPairingVM", "Connected to phone: ${nodes.first().displayName}")
+                    Log.d("SW_WEAR_VM", "Paired — phone is ${nodes.first().displayName} id=${nodes.first().id}")
                     PairingState.Paired
                 } else {
-                    Log.d("WearPairingVM", "No phone node connected")
+                    Log.w("SW_WEAR_VM", "No phone node found — showing Unpaired")
                     PairingState.Unpaired
                 }
             } catch (e: Exception) {
-                Log.e("WearPairingVM", "Error checking connection state", e)
+                Log.e("SW_WEAR_VM", "Error checking connection state", e)
                 _pairingState.value = PairingState.Unpaired
             }
         }
@@ -95,12 +101,14 @@ class WearPairingViewModel @Inject constructor(
     }
 
     fun requestStart(durationMinutes: Int = 30) {
+        Log.d("SW_WEAR_VM", "requestStart($durationMinutes min) — asking phone to start walk")
         viewModelScope.launch {
             dataLayerManager.sendTimerStartRequest(durationMinutes)
         }
     }
 
     fun checkIn(status: String) {
+        Log.d("SW_WEAR_VM", "checkIn($status) — sending to phone, resetting local state")
         viewModelScope.launch {
             dataLayerManager.sendCheckIn(status)
             _session.value = SafeWalkSession.Idle
@@ -109,6 +117,7 @@ class WearPairingViewModel @Inject constructor(
     }
 
     fun triggerSOS() {
+        Log.d("SW_WEAR_VM", "triggerSOS() — sending SOS check-in to phone")
         viewModelScope.launch {
             dataLayerManager.sendCheckIn("SOS")
         }
@@ -116,13 +125,21 @@ class WearPairingViewModel @Inject constructor(
 
     private fun startTimerUpdates() {
         viewModelScope.launch {
+            var logTick = 0
             while (true) {
                 if (_session.value is SafeWalkSession.Active) {
                     delay(1000)
                     _remainingSeconds.update { current ->
-                        if (current > 0) current - 1 else 0
+                        val next = if (current > 0) current - 1 else 0
+                        logTick++
+                        // Log every 5 seconds to avoid flooding logcat
+                        if (logTick % 5 == 0) {
+                            Log.d("SW_WEAR_VM", "Local countdown tick: $current → $next")
+                        }
+                        next
                     }
                 } else {
+                    logTick = 0
                     delay(100)
                 }
             }
