@@ -1,6 +1,7 @@
 package com.wear.data
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataClient.OnDataChangedListener
@@ -33,7 +34,10 @@ class WearDataLayerManager @Inject constructor(
                     trySend(event.freeze())
                 }
             }
-            addListener(listener)
+            // FILTER_REACHABLE ensures we receive events from ALL nodes (phone + watch),
+            // not just items owned by the local node. Without this the phone's /timer_state
+            // writes never arrive here.
+            addListener(listener, Uri.parse("wear://"), DataClient.FILTER_REACHABLE)
             awaitClose { removeListener(listener) }
         }
 
