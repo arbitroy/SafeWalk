@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -171,8 +173,8 @@ private fun WearMainScreen(
 /**
  * Pairing menu — displayed when the user taps the status indicator.
  *
- * Horizontal padding of 20 % on each side keeps all content inside the
- * inscribed safe zone of a circular watch face.
+ * Uses verticalScroll so content never clips on small round screens.
+ * Horizontal width capped at 78 % to stay inside the inscribed safe zone.
  */
 @Composable
 private fun WearPairingMenuScreen(
@@ -186,10 +188,10 @@ private fun WearPairingMenuScreen(
             .background(Color.Black),
         contentAlignment = Alignment.Center,
     ) {
-        // 80 % width = safe zone for circular screens; avoids corner clipping
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.8f),
+                .fillMaxWidth(0.78f)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -239,21 +241,18 @@ private fun UnpairedMenuState(viewModel: WearPairingViewModel) {
 
 @Composable
 private fun PairedMenuState(viewModel: WearPairingViewModel) {
+    // Keep the total height inside the inscribed safe zone of a round watch face.
+    // The large icon was removed — the green dot on the main screen already signals
+    // paired status before the user taps into this menu.
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(
-            Icons.Filled.Check,
-            "Paired",
-            modifier = Modifier.size(40.dp),
-            tint = Color(0xFF10B981),
-        )
         Text(
             "PAIRED",
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = Color(0xFF10B981),
         )
         Text(
             "Phone connected",
@@ -261,10 +260,8 @@ private fun PairedMenuState(viewModel: WearPairingViewModel) {
             color = Color(0xFFAAAAAA),
         )
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(4.dp))
 
-        // Two buttons stacked vertically — safer than side-by-side on a
-        // circular screen where horizontal extremes get clipped
         OutlinedButton(
             onClick = { viewModel.togglePairingMenu() },
             modifier = Modifier
