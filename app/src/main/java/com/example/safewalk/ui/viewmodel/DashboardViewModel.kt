@@ -44,6 +44,9 @@ class DashboardViewModel @Inject constructor(
     val uiEvent = _uiEvent.asSharedFlow()
 
     init {
+        // Eagerly discover the paired watch so sends and receives work immediately,
+        // without requiring the user to manually visit the Pairing screen first.
+        viewModelScope.launch { wearDataLayerManager.ensureConnected() }
         startTimerUpdates()
         listenForWearableEvents()
     }
@@ -146,7 +149,10 @@ class DashboardViewModel @Inject constructor(
                         "COMPLETED" -> stopSafeWalk()
                         "SOS" -> triggerSOS()
                     }
-                    is WearableEvent.TimerStartRequest -> startSafeWalk(event.durationMinutes)
+                    // Watch-initiated start: use the phone's own configured default duration,
+                    // not whatever the watch hardcoded. This ensures the watch always
+                    // reflects the duration the user set in Settings.
+                    is WearableEvent.TimerStartRequest -> startSafeWalk(null)
                     is WearableEvent.TimerSyncRequest -> {
                         val s = _session.value
                         if (s is SafeWalkSession.Active) {
