@@ -75,74 +75,93 @@ class WearDataLayerManager @Inject constructor(
         }
     }
 
+    // Dedup guard: both the ViewModel DataClient listener and WearableListenerService may
+    // fire for the same event when the app is in the foreground. Track the last emitted
+    // event key + timestamp so identical events within a 2-second window are dropped.
+    @Volatile private var lastEventKey = ""
+    @Volatile private var lastEventTimeMs = 0L
+
+    private suspend fun emitDeduped(event: WearableEvent) {
+        val key = when (event) {
+            is WearableEvent.CheckInReceived -> "check_in_${event.status}"
+            WearableEvent.TimerStartRequest   -> "timer_start"
+            WearableEvent.TimerSyncRequest    -> "timer_sync"
+            else                              -> event::class.simpleName ?: "unknown"
+        }
+        val now = System.currentTimeMillis()
+        if (key == lastEventKey && now - lastEventTimeMs < 2_000L) {
+            Log.d("SW_PHONE_DL", "Dedup: dropping duplicate event key=$key")
+            return
+        }
+        lastEventKey = key
+        lastEventTimeMs = now
+        _wearableEvents.emit(event)
+    }
+
+    suspend fun processDataEvent(event: DataEvent) {
+        val typeStr = when (event.type) {
+            DataEvent.TYPE_CHANGED -> "TYPE_CHANGED"
+            DataEvent.TYPE_DELETED -> "TYPE_DELETED"
+            else                  -> "TYPE_UNKNOWN(${event.type})"
+        }
+        val path = event.dataItem.uri.path
+        val host = event.dataItem.uri.host
+        Log.d("SW_PHONE_DL", "processDataEvent: type=$typeStr  path=$path  host=$host")
+
+        if (event.type != DataEvent.TYPE_CHANGED && event.type != DataEvent.TYPE_DELETED) {
+            return
+        }
+
+        val knownWatchPaths = setOf("/check_in", "/timer_start", "/timer_sync", "/error")
+        if (path !in knownWatchPaths) {
+            Log.d("SW_PHONE_DL", "Path '$path' not in watch paths — ignoring")
+            return
+        }
+
+        val pairedDevice = pairingManager.pairedDevice.value
+        Log.d("SW_PHONE_DL", "Processing path=$path  pairedDevice=${pairedDevice?.remoteDeviceId ?: "NULL"}  eventHost=$host")
+
+        if (pairedDevice != null) {
+            if (!validateMessageSource(host, pairedDevice.remoteDeviceId)) {
+                Log.w("SW_PHONE_DL", "Source mismatch — host=$host expected=${pairedDevice.remoteDeviceId} — IGNORING")
+                return
+            }
+        } else {
+            Log.w("SW_PHONE_DL", "No pairing cached — accepting event and auto-discovering")
+            pairingManager.checkWearableConnection()
+        }
+
+        Log.d("SW_PHONE_DL", "Dispatching event for path=$path")
+        when (path) {
+            "/check_in" -> {
+                val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
+                val status = dataMap.getString("status")
+                    ?: String(event.dataItem.data ?: byteArrayOf())
+                Log.d("SW_PHONE_DL", "/check_in received — status='$status'")
+                emitDeduped(WearableEvent.CheckInReceived(status))
+            }
+            "/timer_start" -> {
+                Log.d("SW_PHONE_DL", "/timer_start received from watch")
+                emitDeduped(WearableEvent.TimerStartRequest)
+            }
+            "/timer_sync" -> {
+                Log.d("SW_PHONE_DL", "/timer_sync received")
+                emitDeduped(WearableEvent.TimerSyncRequest)
+            }
+            "/error" -> {
+                val errorMsg = String(event.dataItem.data ?: byteArrayOf())
+                Log.d("SW_PHONE_DL", "/error received: $errorMsg")
+                emitDeduped(WearableEvent.WearableError(errorMsg))
+            }
+        }
+    }
+
     fun startListening(scope: CoroutineScope) {
         Log.d("SW_PHONE_DL", "startListening() called — registering DataClient listener on phone")
         scope.launch {
             dataClient.dataFlow
                 .catch { e -> Log.e("SW_PHONE_DL", "Error in dataFlow", e) }
-                .collect { event ->
-                    val typeStr = when (event.type) {
-                        DataEvent.TYPE_CHANGED -> "TYPE_CHANGED"
-                        DataEvent.TYPE_DELETED -> "TYPE_DELETED"
-                        else                  -> "TYPE_UNKNOWN(${event.type})"
-                    }
-                    val path = event.dataItem.uri.path
-                    val host = event.dataItem.uri.host
-                    Log.d("SW_PHONE_DL", "Event: type=$typeStr  path=$path  host=$host")
-
-                    if (event.type != DataEvent.TYPE_CHANGED &&
-                        event.type != DataEvent.TYPE_DELETED) {
-                        Log.d("SW_PHONE_DL", "Skipping non-CHANGED/DELETED event")
-                        return@collect
-                    }
-
-                    val knownWatchPaths = setOf("/check_in", "/timer_start", "/timer_sync", "/error")
-                    if (path !in knownWatchPaths) {
-                        Log.d("SW_PHONE_DL", "Path '$path' not in watch paths — ignoring (this is normal for /timer_state sent by phone itself)")
-                        return@collect
-                    }
-
-                    val pairedDevice = pairingManager.pairedDevice.value
-                    Log.d("SW_PHONE_DL", "Processing path=$path  pairedDevice=${pairedDevice?.remoteDeviceId ?: "NULL"}  eventHost=$host")
-
-                    if (pairedDevice != null) {
-                        if (!validateMessageSource(host, pairedDevice.remoteDeviceId)) {
-                            Log.w("SW_PHONE_DL", "Source mismatch — host=$host expected=${pairedDevice.remoteDeviceId} — IGNORING")
-                            return@collect
-                        }
-                        Log.d("SW_PHONE_DL", "Source validated OK: $host == ${pairedDevice.remoteDeviceId}")
-                    } else {
-                        Log.w("SW_PHONE_DL", "No pairing cached — accepting event and auto-discovering")
-                        pairingManager.checkWearableConnection()
-                    }
-
-                    Log.d("SW_PHONE_DL", "Dispatching event for path=$path")
-                    when (path) {
-                        "/check_in" -> {
-                            val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
-                            val status = dataMap.getString("status")
-                                ?: String(event.dataItem.data ?: byteArrayOf())
-                            Log.d("SW_PHONE_DL", "/check_in received — status='$status' — emitting CheckInReceived")
-                            _wearableEvents.emit(WearableEvent.CheckInReceived(status))
-                        }
-
-                        "/timer_start" -> {
-                            Log.d("SW_PHONE_DL", "/timer_start received from watch — emitting TimerStartRequest (phone will use own settings)")
-                            _wearableEvents.emit(WearableEvent.TimerStartRequest)
-                        }
-
-                        "/timer_sync" -> {
-                            Log.d("SW_PHONE_DL", "/timer_sync received — emitting TimerSyncRequest")
-                            _wearableEvents.emit(WearableEvent.TimerSyncRequest)
-                        }
-
-                        "/error" -> {
-                            val errorMsg = String(event.dataItem.data ?: byteArrayOf())
-                            Log.d("SW_PHONE_DL", "/error received: $errorMsg")
-                            _wearableEvents.emit(WearableEvent.WearableError(errorMsg))
-                        }
-                    }
-                }
+                .collect { event -> processDataEvent(event) }
         }
     }
 

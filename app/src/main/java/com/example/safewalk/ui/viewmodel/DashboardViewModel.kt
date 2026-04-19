@@ -163,8 +163,8 @@ class DashboardViewModel @Inject constructor(
                         }
                     }
                     is WearableEvent.TimerStartRequest -> {
-                        Log.d("SW_PHONE_VM", "TimerStartRequest from watch — calling startSafeWalk(null) to use phone settings")
-                        startSafeWalk(null)
+                        Log.d("SW_PHONE_VM", "TimerStartRequest from watch — session=${_session.value::class.simpleName}")
+                        if (_session.value !is SafeWalkSession.Active) startSafeWalk(null)
                     }
                     is WearableEvent.TimerSyncRequest -> {
                         val s = _session.value

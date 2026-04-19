@@ -41,46 +41,43 @@ class WearDataLayerManager @Inject constructor(
             awaitClose { removeListener(listener) }
         }
 
+    suspend fun processDataEvent(event: DataEvent) {
+        val path = event.dataItem.uri.path
+        val host = event.dataItem.uri.host
+        Log.d("SW_WEAR_DL", "processDataEvent: path=$path  host=$host")
+
+        if (event.type != DataEvent.TYPE_CHANGED) {
+            Log.d("SW_WEAR_DL", "Skipping non-CHANGED event for path=$path")
+            return
+        }
+
+        when (path) {
+            "/timer_state" -> {
+                val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
+                val payload = dataMap.getByteArray("payload")
+                Log.d("SW_WEAR_DL", "/timer_state received — payload=${if (payload == null) "NULL" else "${payload.size} bytes: ${String(payload, Charsets.UTF_8)}"}")
+                repository.updateTimerState(payload)
+            }
+            "/contacts" -> {
+                val payload = DataMapItem.fromDataItem(event.dataItem)
+                    .dataMap.getByteArray("payload")
+                Log.d("SW_WEAR_DL", "/contacts received — payload=${payload?.size ?: "NULL"} bytes")
+                repository.updateContacts(payload)
+            }
+            "/pairing_confirm" -> {
+                val code = String(event.dataItem.data ?: byteArrayOf())
+                Log.d("SW_WEAR_DL", "/pairing_confirm received: $code")
+            }
+            else -> Log.d("SW_WEAR_DL", "Ignoring unhandled path: $path")
+        }
+    }
+
     fun startListening(scope: CoroutineScope) {
         Log.d("SW_WEAR_DL", "startListening() called — registering DataClient listener")
         scope.launch {
             dataClient.dataFlow
                 .catch { e -> Log.e("SW_WEAR_DL", "Error in dataFlow", e) }
-                .collect { event ->
-                    val typeStr = when (event.type) {
-                        DataEvent.TYPE_CHANGED -> "TYPE_CHANGED"
-                        DataEvent.TYPE_DELETED -> "TYPE_DELETED"
-                        else                  -> "TYPE_UNKNOWN(${event.type})"
-                    }
-                    val path = event.dataItem.uri.path
-                    val host = event.dataItem.uri.host
-                    Log.d("SW_WEAR_DL", "Event received: type=$typeStr  path=$path  host=$host")
-
-                    if (event.type != DataEvent.TYPE_CHANGED) {
-                        Log.d("SW_WEAR_DL", "Skipping non-CHANGED event for path=$path")
-                        return@collect
-                    }
-
-                    when (path) {
-                        "/timer_state" -> {
-                            val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
-                            val payload = dataMap.getByteArray("payload")
-                            Log.d("SW_WEAR_DL", "/timer_state received — payload=${if (payload == null) "NULL" else "${payload.size} bytes: ${String(payload, Charsets.UTF_8)}"}")
-                            repository.updateTimerState(payload)
-                        }
-                        "/contacts" -> {
-                            val payload = DataMapItem.fromDataItem(event.dataItem)
-                                .dataMap.getByteArray("payload")
-                            Log.d("SW_WEAR_DL", "/contacts received — payload=${payload?.size ?: "NULL"} bytes")
-                            repository.updateContacts(payload)
-                        }
-                        "/pairing_confirm" -> {
-                            val code = String(event.dataItem.data ?: byteArrayOf())
-                            Log.d("SW_WEAR_DL", "/pairing_confirm received: $code")
-                        }
-                        else -> Log.d("SW_WEAR_DL", "Ignoring unhandled path: $path")
-                    }
-                }
+                .collect { event -> processDataEvent(event) }
         }
     }
 
