@@ -49,10 +49,10 @@ class WearDataLayerManager @Inject constructor(
                     trySend(event.freeze())
                 }
             }
-            // FILTER_REACHABLE ensures we receive events from ALL nodes (watch + phone),
+            // FILTER_PREFIX ensures we receive events from ALL nodes (watch + phone),
             // not just items owned by the local node. Without this the watch's /timer_start
             // and /check_in writes never arrive here.
-            addListener(listener, Uri.parse("wear://"), DataClient.FILTER_REACHABLE)
+            addListener(listener, Uri.parse("wear://"), DataClient.FILTER_PREFIX)
             awaitClose {
                 removeListener(listener)
             }
