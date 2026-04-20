@@ -148,8 +148,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun listenForWearableEvents() {
-        Log.d("SW_PHONE_VM", "listenForWearableEvents() — starting listener and event collector")
-        wearDataLayerManager.startListening(viewModelScope)
+        Log.d("SW_PHONE_VM", "listenForWearableEvents() — subscribing to wearable events")
         viewModelScope.launch {
             wearDataLayerManager.wearableEvents.collect { event ->
                 Log.d("SW_PHONE_VM", "WearableEvent received: ${event::class.simpleName}")

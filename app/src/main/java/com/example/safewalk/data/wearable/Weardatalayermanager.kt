@@ -121,13 +121,14 @@ class WearDataLayerManager @Inject constructor(
         val pairedDevice = pairingManager.pairedDevice.value
         Log.d("SW_PHONE_DL", "Processing path=$path  pairedDevice=${pairedDevice?.remoteDeviceId ?: "NULL"}  eventHost=$host")
 
-        if (pairedDevice != null) {
-            if (!validateMessageSource(host, pairedDevice.remoteDeviceId)) {
-                Log.w("SW_PHONE_DL", "Source mismatch — host=$host expected=${pairedDevice.remoteDeviceId} — IGNORING")
-                return
-            }
-        } else {
-            Log.w("SW_PHONE_DL", "No pairing cached — accepting event and auto-discovering")
+        if (pairedDevice != null && !validateMessageSource(host, pairedDevice.remoteDeviceId)) {
+            // Node ID mismatch — emulator resets give the watch a new ID each time.
+            // Refresh the cache and continue processing; dropping the event here would
+            // silently break all communication after any emulator restart.
+            Log.w("SW_PHONE_DL", "Source mismatch — cached=${pairedDevice.remoteDeviceId} actual=$host — refreshing pairing cache")
+            pairingManager.checkWearableConnection()
+        } else if (pairedDevice == null) {
+            Log.w("SW_PHONE_DL", "No pairing cached — auto-discovering")
             pairingManager.checkWearableConnection()
         }
 
