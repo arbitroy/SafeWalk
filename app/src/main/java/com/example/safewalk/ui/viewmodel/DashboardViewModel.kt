@@ -9,8 +9,8 @@ import com.example.safewalk.data.model.CheckInStatus
 import com.example.safewalk.data.model.EmergencyContact
 import com.example.safewalk.data.model.SafeWalkSession
 import com.example.safewalk.data.model.User
-import com.example.safewalk.data.wearable.WearDataLayerManager
-import com.example.safewalk.data.wearable.WearableEvent
+import com.example.safewalk.data.firebase.PhoneFirebaseSyncManager
+import com.example.safewalk.data.firebase.WearableEvent
 import android.util.Log
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -27,7 +27,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val repository: SafeWalkRepository,
-    private val wearDataLayerManager: WearDataLayerManager,
+    private val syncManager: PhoneFirebaseSyncManager,
 ) : ViewModel() {
 
     private val _session = MutableStateFlow<SafeWalkSession>(SafeWalkSession.Idle)
@@ -46,11 +46,6 @@ class DashboardViewModel @Inject constructor(
 
     init {
         Log.d("SW_PHONE_VM", "DashboardViewModel init")
-        viewModelScope.launch {
-            Log.d("SW_PHONE_VM", "Calling ensureConnected() on startup")
-            wearDataLayerManager.ensureConnected()
-            Log.d("SW_PHONE_VM", "ensureConnected() completed")
-        }
         startTimerUpdates()
         listenForWearableEvents()
     }
@@ -93,7 +88,6 @@ class DashboardViewModel @Inject constructor(
 
             repository.addCheckIn(CheckIn(status = status, duration = duration))
 
-            // Notify watch that session ended
             syncTimerToWatch(isActive = false, duration = duration, remaining = 0)
 
             when (status) {
@@ -110,9 +104,6 @@ class DashboardViewModel @Inject constructor(
             while (true) {
                 if (_session.value is SafeWalkSession.Active) {
                     delay(1000)
-                    // Re-check after the delay — user may have checked in during the sleep,
-                    // which resets _remainingSeconds to 0. Without this guard, 0 - 1 = -1
-                    // fires a spurious MISSED alert.
                     if (_session.value !is SafeWalkSession.Active) {
                         ticksSinceSync = 0
                         continue
@@ -132,7 +123,6 @@ class DashboardViewModel @Inject constructor(
                             ticksSinceSync = 0
                         }
                         ticksSinceSync >= 30 -> {
-                            // Resync watch every 30 seconds to correct any drift
                             _remainingSeconds.value = newValue
                             syncTimerToWatch(remaining = newValue)
                             ticksSinceSync = 0
@@ -150,7 +140,7 @@ class DashboardViewModel @Inject constructor(
     private fun listenForWearableEvents() {
         Log.d("SW_PHONE_VM", "listenForWearableEvents() — subscribing to wearable events")
         viewModelScope.launch {
-            wearDataLayerManager.wearableEvents.collect { event ->
+            syncManager.wearableEvents.collect { event ->
                 Log.d("SW_PHONE_VM", "WearableEvent received: ${event::class.simpleName}")
                 when (event) {
                     is WearableEvent.CheckInReceived -> {
@@ -164,17 +154,6 @@ class DashboardViewModel @Inject constructor(
                     is WearableEvent.TimerStartRequest -> {
                         Log.d("SW_PHONE_VM", "TimerStartRequest from watch — session=${_session.value::class.simpleName}")
                         if (_session.value !is SafeWalkSession.Active) startSafeWalk(null)
-                    }
-                    is WearableEvent.TimerSyncRequest -> {
-                        val s = _session.value
-                        Log.d("SW_PHONE_VM", "TimerSyncRequest — current session=${s::class.simpleName}")
-                        if (s is SafeWalkSession.Active) {
-                            syncTimerToWatch(
-                                isActive = true,
-                                duration = s.durationMinutes,
-                                remaining = _remainingSeconds.value,
-                            )
-                        }
                     }
                     else -> Log.d("SW_PHONE_VM", "Unhandled event: ${event::class.simpleName}")
                 }
@@ -193,7 +172,7 @@ class DashboardViewModel @Inject constructor(
         val rem = remaining ?: _remainingSeconds.value
         Log.d("SW_PHONE_VM", "syncTimerToWatch: active=$active  duration=${dur}min  remaining=${rem}s")
         viewModelScope.launch {
-            wearDataLayerManager.sendTimerUpdate(
+            syncManager.sendTimerUpdate(
                 isActive = active,
                 durationMinutes = dur,
                 remainingSeconds = rem,

@@ -13,22 +13,5 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object RepositoryModule {
-
-    @Provides
-    @Singleton
-    fun provideDataStore(
-        @ApplicationContext context: Context,
-    ): SafeWalkDataStore {
-        return SafeWalkDataStore(context)
-    }
-
-    @Provides
-    @Singleton
-    fun provideRepository(
-        checkInDao: com.example.safewalk.data.local.CheckInDao,
-        contactDao: com.example.safewalk.data.local.ContactDao,
-        dataStore: SafeWalkDataStore,
-    ): SafeWalkRepository {
-        return SafeWalkRepository(checkInDao, contactDao, dataStore)
-    }
+    // DataStore and Repository are provided via @Inject constructor
 }

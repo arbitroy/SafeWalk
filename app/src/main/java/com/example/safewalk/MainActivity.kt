@@ -18,8 +18,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.safewalk.data.local.SafeWalkRepository
-import com.example.safewalk.pairing.PairingManager
 import com.example.safewalk.permissions.PermissionsManager
 import com.example.safewalk.ui.screens.AlertScreen
 import com.example.safewalk.ui.screens.DashboardScreen
@@ -42,23 +40,13 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject
-    lateinit var repository: SafeWalkRepository
-
-    @Inject
     lateinit var permissionsManager: PermissionsManager
-
-    @Inject
-    lateinit var pairingManager: PairingManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request all pairing permissions on app startup
         permissionsManager.registerPermissionLauncher(this)
         permissionsManager.requestAllPairingPermissions(this)
-
-        // Load previously paired device
-        pairingManager.loadPairedDevice()
 
         setContent {
             SafeWalkTheme {

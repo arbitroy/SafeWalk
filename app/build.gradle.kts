@@ -83,6 +83,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.analytics)
+    implementation(libs.firebase.database)
 
     implementation(libs.play.services.location)
     implementation(libs.play.services.maps)
@@ -91,6 +92,5 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.compose.bom))
-    implementation(libs.play.services.wearable)
     implementation(libs.kotlinx.coroutines.play.services)
 }
