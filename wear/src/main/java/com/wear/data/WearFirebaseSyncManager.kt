@@ -27,17 +27,22 @@ class WearFirebaseSyncManager @Inject constructor(
     private fun sessionRef(code: String) = database.getReference("sessions/$code")
 
     fun pairWithCode(code: String, scope: CoroutineScope, onResult: (Boolean) -> Unit) {
-        // Verify the session exists in Firebase before saving
-        sessionRef(code).child("timer_state").get()
-            .addOnSuccessListener {
-                prefs.edit().putString("session_code", code).apply()
-                startListening(scope)
-                onResult(true)
-            }
-            .addOnFailureListener {
-                Log.e("SW_WEAR_FB", "pairWithCode failed for code=$code", it)
-                onResult(false)
-            }
+        if (code.length != 6 || code.any { !it.isDigit() }) {
+            onResult(false)
+            return
+        }
+        // Write a watch-present marker so the phone can see the watch joined
+        sessionRef(code).child("watch_present").setValue(
+            mapOf("joined_at" to System.currentTimeMillis())
+        ).addOnSuccessListener {
+            prefs.edit().putString("session_code", code).apply()
+            startListening(scope)
+            Log.d("SW_WEAR_FB", "paired with session code $code")
+            onResult(true)
+        }.addOnFailureListener {
+            Log.e("SW_WEAR_FB", "pairWithCode failed for code=$code", it)
+            onResult(false)
+        }
     }
 
     fun unpair() {

@@ -34,7 +34,13 @@ class PhoneFirebaseSyncManager @Inject constructor(
 
     fun regenerateSessionCode(): String {
         val code = (100000..999999).random().toString()
-        prefs.edit().putString("session_code", code).apply()
+        prefs.edit()
+            .putString("session_code", code)
+            .putLong("last_check_in_ts", 0L)
+            .putLong("last_timer_start_ts", 0L)
+            .apply()
+        lastCheckInTimestamp = 0L
+        lastTimerStartTimestamp = 0L
         return code
     }
 
@@ -43,11 +49,11 @@ class PhoneFirebaseSyncManager @Inject constructor(
     private val _wearableEvents = MutableSharedFlow<WearableEvent>()
     val wearableEvents: Flow<WearableEvent> = _wearableEvents.asSharedFlow()
 
-    // Only process events written after this listener was registered
-    private var listenStartTime = 0L
+    // Track timestamps of already-processed events so replays are ignored on restart
+    private var lastCheckInTimestamp = prefs.getLong("last_check_in_ts", 0L)
+    private var lastTimerStartTimestamp = prefs.getLong("last_timer_start_ts", 0L)
 
     fun startListening(scope: CoroutineScope) {
-        listenStartTime = System.currentTimeMillis()
         listenForCheckIn(scope)
         listenForTimerStart(scope)
     }
@@ -57,8 +63,10 @@ class PhoneFirebaseSyncManager @Inject constructor(
             override fun onDataChange(snapshot: DataSnapshot) {
                 val timestamp = snapshot.child("timestamp").getValue(Long::class.java) ?: return
                 val status = snapshot.child("status").getValue(String::class.java) ?: return
-                if (timestamp < listenStartTime) return
-                Log.d("SW_PHONE_FB", "check_in received: status=$status")
+                if (timestamp <= lastCheckInTimestamp) return
+                lastCheckInTimestamp = timestamp
+                prefs.edit().putLong("last_check_in_ts", timestamp).apply()
+                Log.d("SW_PHONE_FB", "check_in received: status=$status ts=$timestamp")
                 scope.launch { _wearableEvents.emit(WearableEvent.CheckInReceived(status)) }
             }
             override fun onCancelled(error: DatabaseError) {
@@ -71,8 +79,10 @@ class PhoneFirebaseSyncManager @Inject constructor(
         sessionRef().child("timer_start").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val timestamp = snapshot.child("timestamp").getValue(Long::class.java) ?: return
-                if (timestamp < listenStartTime) return
-                Log.d("SW_PHONE_FB", "timer_start received from watch")
+                if (timestamp <= lastTimerStartTimestamp) return
+                lastTimerStartTimestamp = timestamp
+                prefs.edit().putLong("last_timer_start_ts", timestamp).apply()
+                Log.d("SW_PHONE_FB", "timer_start received from watch ts=$timestamp")
                 scope.launch { _wearableEvents.emit(WearableEvent.TimerStartRequest) }
             }
             override fun onCancelled(error: DatabaseError) {
